@@ -1,0 +1,52 @@
+{% extends "base.html" %} {% block title %}{{ title }} - {{ brand }}{% endblock %} {% block content %}
+<h1>{{ title }}</h1>
+<details class="panel add-toggle">
+<summary>Add {{ kind|lower }}</summary>
+<form method="post" action="{% url 'change_propose' %}">
+{% include "_post.html" with action="create" %}
+<input type="hidden" name="next" value="{{ request.get_full_path }}">
+<div class="fields">
+{% for name, label, type, maxlen in fields %}
+<div>
+<label for="id_{{ name }}">{{ label }}</label>
+<input id="id_{{ name }}" name="{{ name }}" type="{{ type }}" required maxlength="{{ maxlen }}">
+</div>
+{% endfor %}
+</div>
+<div class="row">
+<button class="primary">Add</button>
+</div>
+</form>
+</details>
+<form method="get" class="searchbar" role="search">
+<div class="f">
+<label for="q">Search {{ title|lower }}</label>
+<input id="q" type="search" name="q" value="{{ q }}" placeholder="Name{% if str_pk %} or code{% endif %}" maxlength="200">
+</div>
+<button type="submit">Search</button>
+{% if q %}<a class="clear" href="{{ list_path }}">Clear</a>{% endif %}
+</form>
+<div class="panel">
+{% if rows %}
+<table>
+<thead>
+<tr>
+<th class="num">ID</th>
+<th>Name</th>
+</tr>
+</thead>
+<tbody>
+{% for row in rows %}
+<tr>
+<td class="num">{{ row.pk }}</td>
+<td><a href="{% url detail row.pk %}">{{ row.name }}</a></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<p class="empty">{% if q %}No matches.{% else %}None.{% endif %}</p>
+{% endif %}
+</div>
+{% include "_pager.html" %}
+{% endblock %}
