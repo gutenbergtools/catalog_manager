@@ -25,6 +25,8 @@ from .clean import (
     jsonable,
 )
 
+# Framework
+
 OPS = {}
 ACTIONS = ("create", "update", "delete", "link", "unlink")
 
@@ -73,6 +75,8 @@ class Op:
         return self._sql(action, before, after) if self._sql else None
 
 
+# Helpers
+
 _m = c._models
 
 
@@ -87,6 +91,10 @@ def _pick(row, keys):
 def _need(before, kind):
     if not before:
         raise Bad("No such %s." % kind)
+
+
+def _sql_str(value):
+    return str(value or "").replace("'", "''")
 
 
 def apply_row(session, model, action, after, values, pk_attr="pk"):
@@ -137,15 +145,12 @@ def exists_state(action, before, kind):
         raise Bad("Not linked." if action == "unlink" else "No such %s." % kind)
 
 
-def _book_val(session, action, data, before):
+def _child_val(session, action, data, before, kind, fk, fk_name, exists):
+    if not exists(session, data[fk]):
+        raise Bad("No such %s." % fk_name)
     if action == "delete":
-        raise Bad("Books cannot be deleted here.")
-    exists_state(action, before, "ebook")
-    data["release_date"] = data.get("release_date") or date.today().isoformat()
-    data["copyrighted"] = data.get("copyrighted") or 0
-    data["updatemode"] = data.get("updatemode") or 0
-    if not (data.get("title") or "").strip():
-        raise Bad("Enter a title.")
+        _need(before, kind)
+        return {"pk": data["pk"], fk: data[fk]}
     return data
 
 
@@ -156,6 +161,88 @@ def refresh_book_title(session, book_pk):
     row is how a changed MARC title becomes visible.
     """
     session.execute(text("update books set title = title where pk = :pk"), {"pk": book_pk})
+
+
+# Factories
+
+def add_link(name, table_fn, field, other_name, exists, other_field=None):
+    form = F(
+        **{
+            "fk_books": forms.IntegerField(min_value=1),
+            field: other_field or forms.IntegerField(min_value=1),
+        }
+    )
+
+    def snapshot(session, data):
+        book, other = data.get("fk_books"), data.get(field)
+        if book in (None, "") or other in (None, ""):
+            return None
+        bound = cleaned(form, data)
+        row = c.linked(session, table_fn(), bound["fk_books"], field, bound[field])
+        return None if row is None else {"fk_books": bound["fk_books"], field: bound[field]}
+
+    def validate(session, action, data, before):
+        if not c.exists_book(session, data["fk_books"]):
+            raise Bad("No such ebook.")
+        if not exists(session, data[field]):
+            raise Bad("That %s is not in the catalog." % other_name)
+        exists_state(action, before, other_name)
+        return {"fk_books": data["fk_books"], field: data[field]}
+
+    def apply(session, action, before, after):
+        link_apply(session, table_fn(), action == "link", {"fk_books": after["fk_books"], field: after[field]})
+        return after
+
+    Op(
+        name,
+        form=form,
+        snapshot=snapshot,
+        validate=validate,
+        apply=apply,
+    )
+
+
+def add_entity(name, model, pk_name, label_field, form, str_pk=False):
+    def snapshot(session, data):
+        raw = data.get("pk")
+        if raw in (None, ""):
+            return None
+        bound = cleaned(form, {"pk": raw}, action="delete")
+        row = session.get(getattr(_m(), model), bound["pk"])
+        return None if row is None else {"pk": getattr(row, pk_name), label_field: getattr(row, label_field)}
+
+    def validate(session, action, data, before):
+        if action == "delete":
+            _need(before, name)
+            return {"pk": data["pk"]}
+        exists_state(action, before, name)
+        return {"pk": data["pk"], label_field: data.get(label_field) or data.get(name)}
+
+    def apply(session, action, before, after):
+        return apply_row(
+            session,
+            getattr(_m(), model),
+            action,
+            after,
+            {label_field: after[label_field]} if action != "delete" else {},
+            pk_name,
+        )
+
+    Op(name, form=form, optional_pk=not str_pk, snapshot=snapshot, validate=validate, apply=apply)
+
+
+# Book
+
+def _book_val(session, action, data, before):
+    if action == "delete":
+        raise Bad("Books cannot be deleted here.")
+    exists_state(action, before, "ebook")
+    data["release_date"] = data.get("release_date") or date.today().isoformat()
+    data["copyrighted"] = data.get("copyrighted") or 0
+    data["updatemode"] = data.get("updatemode") or 0
+    if not (data.get("title") or "").strip():
+        raise Bad("Enter a title.")
+    return data
 
 
 def _book_apply(session, action, before, after):
@@ -196,10 +283,6 @@ def _book_apply(session, action, before, after):
     return row
 
 
-def _sql_str(value):
-    return str(value or "").replace("'", "''")
-
-
 def _book_sql(action, before, after):
     if action == "create":
         return "insert into books (pk, release_date, title, copyrighted, updatemode) values (%s, '%s', '%s', %s, %s)" % (
@@ -230,6 +313,8 @@ Op(
     compat_sql=_book_sql,
 )
 
+
+# Author
 
 def _author_val(session, action, data, before):
     if action == "delete":
@@ -273,16 +358,6 @@ Op(
     apply=_author_apply,
 )
 
-
-def _child_val(session, action, data, before, kind, fk, fk_name, exists):
-    if not exists(session, data[fk]):
-        raise Bad("No such %s." % fk_name)
-    if action == "delete":
-        _need(before, kind)
-        return {"pk": data["pk"], fk: data[fk]}
-    return data
-
-
 Op(
     "alias",
     form=AliasForm,
@@ -297,42 +372,8 @@ Op(
     ),
 )
 
-def add_link(name, table_fn, field, other_name, exists, other_field=None):
-    form = F(
-        **{
-            "fk_books": forms.IntegerField(min_value=1),
-            field: other_field or forms.IntegerField(min_value=1),
-        }
-    )
 
-    def snapshot(session, data):
-        book, other = data.get("fk_books"), data.get(field)
-        if book in (None, "") or other in (None, ""):
-            return None
-        bound = cleaned(form, data)
-        row = c.linked(session, table_fn(), bound["fk_books"], field, bound[field])
-        return None if row is None else {"fk_books": bound["fk_books"], field: bound[field]}
-
-    def validate(session, action, data, before):
-        if not c.exists_book(session, data["fk_books"]):
-            raise Bad("No such ebook.")
-        if not exists(session, data[field]):
-            raise Bad("That %s is not in the catalog." % other_name)
-        exists_state(action, before, other_name)
-        return {"fk_books": data["fk_books"], field: data[field]}
-
-    def apply(session, action, before, after):
-        link_apply(session, table_fn(), action == "link", {"fk_books": after["fk_books"], field: after[field]})
-        return after
-
-    Op(
-        name,
-        form=form,
-        snapshot=snapshot,
-        validate=validate,
-        apply=apply,
-    )
-
+# Book links
 
 add_link("book_subject", lambda: _m().t_mn_books_subjects, "fk_subjects", "subject", c.exists_subject)
 add_link(
@@ -359,6 +400,8 @@ add_link(
     lambda s, v: s.get(_m().Category, int(v)) is not None,
 )
 
+
+# Book author
 
 def _ba_snap(session, data):
     data = dict(data)
@@ -453,6 +496,8 @@ Op(
 )
 
 
+# Attributes
+
 def _attr_val(session, action, data, before):
     after = _child_val(session, action, data, before, "attribute", "fk_books", "ebook", c.exists_book)
     if action == "delete":
@@ -504,34 +549,7 @@ Op(
 )
 
 
-def add_entity(name, model, pk_name, label_field, form, str_pk=False):
-    def snapshot(session, data):
-        raw = data.get("pk")
-        if raw in (None, ""):
-            return None
-        bound = cleaned(form, {"pk": raw}, action="delete")
-        row = session.get(getattr(_m(), model), bound["pk"])
-        return None if row is None else {"pk": getattr(row, pk_name), label_field: getattr(row, label_field)}
-
-    def validate(session, action, data, before):
-        if action == "delete":
-            _need(before, name)
-            return {"pk": data["pk"]}
-        exists_state(action, before, name)
-        return {"pk": data["pk"], label_field: data.get(label_field) or data.get(name)}
-
-    def apply(session, action, before, after):
-        return apply_row(
-            session,
-            getattr(_m(), model),
-            action,
-            after,
-            {label_field: after[label_field]} if action != "delete" else {},
-            pk_name,
-        )
-
-    Op(name, form=form, optional_pk=not str_pk, snapshot=snapshot, validate=validate, apply=apply)
-
+# Entities
 
 add_entity("subject", "Subject", "id", "subject", entity_form("subject"))
 add_entity("category", "Category", "pk", "category", entity_form("category"))
