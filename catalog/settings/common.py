@@ -10,21 +10,8 @@ def env(key, default=""):
     return os.environ.get(key, default)
 
 
-def env_first(*keys, default=""):
-    """Prefer the first non-empty env var (CATALOG_* over legacy BSM_*)."""
-    for key in keys:
-        value = os.environ.get(key)
-        if value not in (None, ""):
-            return value
-    return default
-
-
-def env_list_first(*keys, default=""):
-    return [item.strip() for item in env_first(*keys, default=default).split(",") if item.strip()]
-
-
 def env_list(key, default=""):
-    return env_list_first(key, default=default)
+    return [item.strip() for item in env(key, default).split(",") if item.strip()]
 
 
 LOG_DIR = Path(env("DJANGO_LOG_DIR", str(BASE_DIR / "logs")))
@@ -152,15 +139,11 @@ if env("DJANGO_SECURE_COOKIES", "0") == "1":
     CSRF_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 31536000
-PAGE_SIZE = int(env_first("CATALOG_PAGE_SIZE", "BSM_PAGE_SIZE", default="50"))
-RATE_LOGIN = env_first("CATALOG_RATE_LOGIN", "BSM_RATE_LOGIN", default="10/m")
-RATE_POST = env_first("CATALOG_RATE_POST", "BSM_RATE_POST", default="60/m")
-CATALOG_TRUSTED_PROXIES = env_list_first("CATALOG_TRUSTED_PROXIES", "BSM_TRUSTED_PROXIES", default="127.0.0.1,::1")
-BSM_TRUSTED_PROXIES = CATALOG_TRUSTED_PROXIES  # legacy alias
+PAGE_SIZE = int(env("CATALOG_PAGE_SIZE", "50"))
+RATE_LOGIN = env("CATALOG_RATE_LOGIN", "10/m")
+RATE_POST = env("CATALOG_RATE_POST", "60/m")
+CATALOG_TRUSTED_PROXIES = env_list("CATALOG_TRUSTED_PROXIES", "127.0.0.1,::1")
 # Callable path: django-ratelimit resolves X-Real-IP only from trusted proxies.
 RATELIMIT_IP_META_KEY = "catalog.proxy.client_ip"
-CATALOG_REVIEWERS = env_list_first("CATALOG_REVIEWERS", "BSM_REVIEWERS")
-CATALOG_CATALOGERS = env_list_first("CATALOG_CATALOGERS", "BSM_CATALOGERS")
-BSM_REVIEWERS = CATALOG_REVIEWERS
-BSM_CATALOGERS = CATALOG_CATALOGERS
+CATALOG_CATALOGERS = env_list("CATALOG_CATALOGERS")
 os.makedirs(LOG_DIR, exist_ok=True)

@@ -22,7 +22,7 @@ def _listed(user, *names):
 
 
 def is_cataloger(user):
-    return _listed(user, "CATALOG_CATALOGERS", "BSM_CATALOGERS", "CATALOG_REVIEWERS", "BSM_REVIEWERS")
+    return _listed(user, "CATALOG_CATALOGERS")
 
 
 def can_use_app(user):
