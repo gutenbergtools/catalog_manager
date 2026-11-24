@@ -66,10 +66,19 @@ TEMPLATES = [
 ]
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": env("DJANGO_DB_PATH", str(BASE_DIR / "auth.sqlite3")),
+        # Auth/session/admin tables live in the same Postgres server as the
+        # book data, but in their own schema (default: "django"), so the two
+        # never mix. The schema is created automatically on first connect.
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": env("PGDATABASE", "gutenberg"),
+        "USER": env("PGUSER", "gutenberg"),
+        "PASSWORD": env("PGPASSWORD", ""),
+        "HOST": env("PGHOST", "127.0.0.1"),
+        "PORT": env("PGPORT", "5432"),
+        "OPTIONS": {"options": "-csearch_path=%s" % env("DJANGO_DB_SCHEMA", "django")},
     },
 }
+AUTH_SCHEMA = env("DJANGO_DB_SCHEMA", "django")
 MIGRATION_MODULES = {"catalog": None}
 CACHES = {
     "default": {
@@ -148,6 +157,7 @@ RATE_POST = env("CATALOG_RATE_POST", "60/m")
 CATALOG_TRUSTED_PROXIES = env_list("CATALOG_TRUSTED_PROXIES", "127.0.0.1,::1")
 # Callable path: django-ratelimit resolves X-Real-IP only from trusted proxies.
 RATELIMIT_IP_META_KEY = "catalog.proxy.client_ip"
-CATALOG_CATALOGERS = env_list("CATALOG_CATALOGERS")
-CATALOG_DEV_SUPERUSER = env("CATALOG_DEV_SUPERUSER", "0") == "1"
+# Who may use the site: membership in this Django auth group (see
+# catalog/apps.py, which creates it on migrate).
+CATALOGUER_GROUP = env("DJANGO_CATALOGUER_GROUP", "cataloguer")
 os.makedirs(LOG_DIR, exist_ok=True)

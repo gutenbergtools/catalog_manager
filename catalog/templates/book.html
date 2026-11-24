@@ -228,7 +228,7 @@
 <th>MARC Indicators</th>
 <th class="num">Nonfiling Chars</th>
 <th>Text</th>
-<th class="act"></th>
+{% if attr_actions %}<th class="act"></th>{% endif %}
 </tr>
 </thead>
 <tbody>
@@ -238,6 +238,7 @@
 <td>{{ row.indicators }}</td>
 <td class="num">{{ row.nonfiling }}</td>
 <td>{{ row.text|linebreaksbr }}</td>
+{% if attr_actions %}
 <td class="act">
 {% if row.fk_attriblist != 245 %}
 <span class="actions">
@@ -246,6 +247,7 @@
 </span>
 {% endif %}
 </td>
+{% endif %}
 </tr>
 {% if row.fk_attriblist != 245 %}
 <tr id="attr-edit-{{ row.pk }}" class="attr-editor" hidden>

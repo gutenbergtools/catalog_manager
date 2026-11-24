@@ -8,16 +8,17 @@ Web UI for cataloging Project Gutenberg books: the record, authors, subjects, ca
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python manage.py migrate
 .venv/bin/python manage.py createsuperuser
-DJANGO_DEBUG=1 CATALOG_DEV_SUPERUSER=1 CATALOG_CATALOGERS=you@example.org \
-    .venv/bin/python manage.py runserver 127.0.0.1:8000
+DJANGO_DEBUG=1 .venv/bin/python manage.py runserver 127.0.0.1:8000
+# then add yourself to the gate group:
+.venv/bin/python manage.py shell -c "from django.contrib.auth.models import User, Group; User.objects.get(username='you').groups.add(Group.objects.get(name='cataloguer'))"
 ```
 
-Postgres via `PGHOST`/`PGDATABASE`/`PGUSER`. Debug and the superuser allowlist bypass (`CATALOG_DEV_SUPERUSER`) are off unless opted in; secure cookies are on unless `DJANGO_DEBUG=1`. Set `CATALOG_CATALOGERS` for production. Reverse proxy → `127.0.0.1:8000`, with `DJANGO_ALLOWED_HOSTS` / `DJANGO_CSRF_TRUSTED_ORIGINS` pinned to the hostname.
+Django's auth/session tables live in the same Postgres as the book data (`PGHOST`/`PGDATABASE`/`PGUSER`), in their own schema (`DJANGO_DB_SCHEMA`, default `django`), created automatically on first connect. Catalogers are the users in the `cataloguer` group (`DJANGO_CATALOGUER_GROUP`); `migrate` creates the group. Secure cookies are on unless `DJANGO_DEBUG=1`. Reverse proxy → `127.0.0.1:8000`, with `DJANGO_ALLOWED_HOSTS` / `DJANGO_CSRF_TRUSTED_ORIGINS` pinned to the hostname.
 
 ## Deploy
 
 Set `DJANGO_SECRET_KEY`; with debug off the app refuses to start on the built-in key.
 Run `manage.py check --deploy` before switching traffic, and `manage.py collectstatic`, which DEBUG off requires.
-The service's `EnvironmentFile` is optional by design (a missing `.env` must not stop the unit), so pin `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_CSRF_TRUSTED_ORIGINS` and `CATALOG_CATALOGERS` explicitly.
+The service's `EnvironmentFile` is optional by design (a missing `.env` must not stop the unit), so pin `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_CSRF_TRUSTED_ORIGINS` and `PGPASSWORD` explicitly.
 Set `DJANGO_SSL_REDIRECT=1` only once the proxy passes `X-Forwarded-Proto`, or the app will loop on https.
 Pin exact versions: `pip install -r requirements.lock`.

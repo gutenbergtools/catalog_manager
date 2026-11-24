@@ -2,10 +2,11 @@ from datetime import date
 from unittest import mock
 
 from django import forms
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import SimpleTestCase, TestCase
 
 from . import catalog as c
 from .clean import YEAR_MAX, Bad, BookForm, CodeField, FlagField, TextField, cleaned, stale
@@ -71,6 +72,17 @@ PRIVATE_PAGES = [
 
 
 class AccessControlTests(TestCase):
+    @staticmethod
+    def cataloger(username="cataloger", password=None):
+        from django.contrib.auth.models import Group
+
+        kwargs = {"email": username + "@example.com"}
+        if password:
+            kwargs["password"] = password
+        user = get_user_model().objects.create_user(username, **kwargs)
+        user.groups.add(Group.objects.get(name=settings.CATALOGUER_GROUP))
+        return user
+
     def test_private_pages_require_login(self):
         for url in PRIVATE_PAGES:
             with self.subTest(url=url):
@@ -78,12 +90,26 @@ class AccessControlTests(TestCase):
                 self.assertEqual(response.status_code, 302)
                 self.assertTrue(response["Location"].startswith("/login/"))
 
-    @override_settings(CATALOG_CATALOGERS=["cataloger@example.com"])
     def test_non_cataloger_cannot_propose_changes(self):
         user = get_user_model().objects.create_user("outsider", email="outsider@example.com")
         self.client.force_login(user)
         response = self.client.post("/change/propose/", {"op": "book", "action": "create"})
         self.assertEqual(response.status_code, 403)
+
+    def test_cataloger_can_propose_changes(self):
+        self.client.force_login(self.cataloger())
+        response = self.client.post("/change/propose/", {"op": "book", "action": "create"})
+        self.assertEqual(response.status_code, 302)  # invalid data: redirected with a flash, not 403
+
+    def test_login_refused_without_group(self):
+        get_user_model().objects.create_user("outsider", email="outsider@example.com", password="long-password-1")
+        response = self.client.post("/login/", {"username": "outsider", "password": "long-password-1"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This account cannot use this site.")
+
+        self.cataloger("member", password="long-password-1")
+        response = self.client.post("/login/", {"username": "member", "password": "long-password-1"})
+        self.assertEqual(response.status_code, 302)
 class FallbackSqlTests(SimpleTestCase):
     def test_links(self):
         self.assertEqual(

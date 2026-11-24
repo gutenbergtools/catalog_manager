@@ -5,5 +5,6 @@
 # EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'; EMAIL_HOST = 'smtp.example.org'; EMAIL_PORT = 587
 # EMAIL_USE_TLS = True; EMAIL_USE_SSL = False; EMAIL_HOST_USER = 'catalog@example.org'; EMAIL_HOST_PASSWORD = ''
 # DEFAULT_FROM_EMAIL = 'Catalog Manager <catalog@example.org>'; SERVER_EMAIL = DEFAULT_FROM_EMAIL; EMAIL_TIMEOUT = 30
-# SECRET_KEY = ''; CATALOG_CATALOGERS = ['you@example.org']
+# SECRET_KEY = ''
+# CATALOGUER_GROUP = 'cataloguer'  # users in this auth group may use the site
 # CATALOG_TRUSTED_PROXIES = ['127.0.0.1', '::1']

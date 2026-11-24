@@ -394,6 +394,7 @@ def book_page(pk):
             "subtitle": sub,
             "authors": book_authors(s, pk),
             "nonfiling": next((r["nonfiling"] or 0 for r in attrs if str(r["fk_attriblist"]) == "245"), 0),
+            "attr_actions": any(str(r["fk_attriblist"]) != "245" for r in attrs),
             "attributes": attrs,
             "subjects": _mn(s, pk, "subjects"),
             "langs": _mn(s, pk, "langs"),
