@@ -1,4 +1,5 @@
 from datetime import date
+from unittest import mock
 
 from django import forms
 from django.contrib.auth import get_user_model
@@ -6,8 +7,9 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase, override_settings
 
+from . import catalog as c
 from .clean import YEAR_MAX, Bad, BookForm, CodeField, FlagField, TextField, cleaned, stale
-from .ops import _book_val, fallback_sql
+from .ops import _book_snap, _book_val, fallback_sql
 
 
 class _Num(forms.Form):
@@ -188,6 +190,24 @@ class StaleTests(SimpleTestCase):
         self.assertFalse(stale({"text": "one\ntwo"}, {"was_text": "one\r\ntwo"}, ("text",)))
         self.assertFalse(stale({"indicators": "  "}, {"was_indicators": ""}, ("indicators",)))
         self.assertFalse(stale({"fk_langs": None}, {"was_fk_langs": ""}, ("fk_langs",)))
+
+
+class BookSnapshotTests(SimpleTestCase):
+    def test_snapshot_takes_the_posted_form_data(self):
+        from sqlalchemy import column
+
+        session = mock.Mock()
+        session.scalar.return_value = 4
+        model = mock.Mock()
+        model.Attribute.nonfiling = column("nonfiling")
+        row = {"pk": 11, "release_date": "2026-01-01", "title": "The Idiot", "copyrighted": 0, "updatemode": 0}
+        with (
+            mock.patch.object(c, "book_row", lambda s, pk: dict(row, pk=pk)),
+            mock.patch("catalog.ops._m", lambda: model),
+        ):
+            snap = _book_snap(session, {"pk": "11"})
+        self.assertEqual(snap["pk"], 11)
+        self.assertEqual(snap["nonfiling"], 4)
 
 
 class BookStaleTests(SimpleTestCase):

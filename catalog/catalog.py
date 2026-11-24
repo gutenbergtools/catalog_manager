@@ -140,6 +140,7 @@ def book_row(session, pk):
     book = session.get(_m().Book, int(pk))
     if book is None:
         return None
+    text = (book.title or "").replace("\r\n", "\n").replace("\r", "\n").strip()
     return {
         "pk": book.pk,
         "release_date": book.release_date.isoformat() if book.release_date else "",
@@ -147,7 +148,8 @@ def book_row(session, pk):
         "updatemode": int(book.updatemode or 0),
         "gutindex": book.gutindex or "",
         "downloads": book.downloads,
-        "title": (book.title or "Untitled").split("\n")[0],
+        "title": text,
+        "heading": text.split("\n")[0] if text else "Untitled",
     }
 
 
@@ -212,7 +214,7 @@ def search_books(query, page=1, size=None, sort=""):
             with session() as s:
                 book = book_row(s, pk)
             if book:
-                rows = [{"pk": pk, "title": book["title"], "authors": "", "downloads": book.get("downloads") or 0}] + rows
+                rows = [{"pk": pk, "title": book["heading"], "authors": "", "downloads": book.get("downloads") or 0}] + rows
                 total += 1
     return rows, total
 

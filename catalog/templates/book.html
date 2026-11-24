@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}{{ book.title }} - {{ brand }}{% endblock %}
+{% block title %}{{ book.heading }} - {{ brand }}{% endblock %}
 {% block content %}
 <nav class="links-nav" aria-label="Book shortcuts">
 <a href="{% url 'books' %}">All books</a>
 <a class="ext" href="https://www.gutenberg.org/ebooks/{{ book.pk }}" target="_blank" rel="noopener">Gutenberg Bibrec</a>
 <a class="ext" href="https://www.gutenberg.org/ebooks/{{ book.pk }}#download" target="_blank" rel="noopener">Bibrec Download</a>
 </nav>
-<h1>{{ book.title }}</h1>
+<h1>{{ book.heading }}</h1>
 {% if subtitle %}
 <p class="subtitle">{{ subtitle }}</p>
 {% endif %}

@@ -243,12 +243,15 @@ def add_entity(name, model, pk_name, label_field, form, str_pk=False, in_use=Non
 
 # Book
 
-def _book_snap(session, pk):
+def _book_get(session, pk):
     row = _pick(c.book_row(session, pk), ("pk", "release_date", "title", "copyrighted", "updatemode"))
     if row:
         a = _m().Attribute
         row["nonfiling"] = session.scalar(select(a.nonfiling).where(a.fk_books == pk, a.fk_attriblist == 245)) or 0
     return row
+
+
+_book_snap = snap_pk(_book_get)
 
 
 def _book_val(session, action, data, before):
