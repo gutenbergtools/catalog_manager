@@ -1,16 +1,19 @@
-{% extends "base.html" %} {% block title %}{{ book.title }} - {{ brand }}{% endblock %} {% block content %}
+{% extends "base.html" %}
+{% block title %}{{ book.title }} - {{ brand }}{% endblock %}
+{% block content %}
 <nav class="links-nav" aria-label="Book shortcuts">
 <a href="{% url 'books' %}">All books</a>
 <a class="ext" href="https://www.gutenberg.org/ebooks/{{ book.pk }}" target="_blank" rel="noopener">Gutenberg Bibrec</a>
+<a class="ext" href="https://www.gutenberg.org/ebooks/{{ book.pk }}#download" target="_blank" rel="noopener">Bibrec Download</a>
 </nav>
 <h1>{{ book.title }}</h1>
 {% if subtitle %}
 <p class="subtitle">{{ subtitle }}</p>
 {% endif %}
 <p class="sub">Ebook #{{ book.pk }} · {{ book.downloads }} downloads</p>
-<form method="post" action="{% url 'change_propose' %}" class="panel box record section">
-{% include "_post.html" with op="book" action="update" %}
+<form method="post" action="{% url 'change_propose' %}" class="box section">
 <h2>Record</h2>
+{% include "_post.html" with op="book" action="update" %}
 <div class="book-edit">
 {% include "_book_fields.html" %}
 <button class="save">Save</button>
@@ -19,33 +22,35 @@
 </form>
 <div class="section">
 <h2>Authors</h2>
-<div class="panel addbar">
-<form method="post" action="{% url 'change_propose' %}">
+<div class="stack">
+<form method="post" action="{% url 'change_propose' %}" class="addline">
 {% include "_post.html" with op="book_author" action="link" %}
 <input type="hidden" name="fk_books" value="{{ book.pk }}">
+<div class="finder">
+<label for="author-find">Find author</label>
+<input id="author-find" type="search" data-search="{% url 'link_search' %}?kind=author&amp;q=" data-fill="#new-author-pk" placeholder="Name" autocomplete="off">
+</div>
 <label for="new-author-pk">Author ID</label>
 <input id="new-author-pk" type="number" name="fk_authors" min="1" required>
-<label for="new-author-role">Role</label>
-<select id="new-author-role" name="fk_roles" required>
+<label class="vh" for="new-author-role">Role</label>
+<select id="new-author-role" name="fk_roles" required title="In which role did this author contribute to the book?">
 {% for key, label in lookups.roles %}
 <option value="{{ key }}"{% if key == 'cr' %} selected{% endif %}>{{ label }}</option>
 {% endfor %}
 </select>
 <label class="vh" for="new-author-heading">Heading</label>
-<select id="new-author-heading" name="heading" title="Heading">
+<select id="new-author-heading" name="heading" title="Should this author generate a user-visible heading?">
 <option value="1" selected>Heading</option>
-<option value="0">No heading</option>
+<option value="0">No-Heading</option>
 </select>
 <button class="primary push">Link</button>
 </form>
-</div>
-<div class="panel">
-{% if authors %}
-<table class="compact">
+<table class="list">
 <thead>
 <tr>
 <th>Author</th>
 <th>Role</th>
+{% if authors %}<th class="act"></th>{% endif %}
 </tr>
 </thead>
 <tbody>
@@ -53,12 +58,10 @@
 <tr>
 <td>
 <a href="{% url 'author' row.pk %}">{{ row.author }}</a>
-<span class="meta">#{{ row.pk }}{% if row.birthdate or row.deathdate %} · {% if row.birthdate %}{{ row.birthdate }}{% endif %}{% if row.deathdate %}–{{ row.deathdate }}{% endif %}{% endif %}
-</span>
+<span class="meta">#{{ row.pk }}{% if row.birthdate or row.deathdate %} · {% if row.birthdate %}{{ row.birthdate }}{% endif %}{% if row.deathdate %}–{{ row.deathdate }}{% endif %}{% endif %}</span>
 </td>
 <td>
-<div class="row-edit tight">
-<form method="post" action="{% url 'change_propose' %}" class="row-edit tight">
+<form method="post" action="{% url 'change_propose' %}" class="row-edit">
 {% include "_post.html" with op="book_author" action="update" %}
 <input type="hidden" name="fk_books" value="{{ book.pk }}">
 <input type="hidden" name="fk_authors" value="{{ row.pk }}">
@@ -72,190 +75,142 @@
 <label class="vh" for="edit-head-{{ row.pk }}-{{ row.fk_roles }}">Heading</label>
 <select id="edit-head-{{ row.pk }}-{{ row.fk_roles }}" name="heading" title="Heading">
 <option value="1"{% if row.heading %} selected{% endif %}>Heading</option>
-<option value="0"{% if not row.heading %} selected{% endif %}>No heading</option>
+<option value="0"{% if not row.heading %} selected{% endif %}>No-Heading</option>
 </select>
 <button class="save">Save</button>
 <button type="button" class="cancel">Cancel</button>
 </form>
-{% include "_act.html" with op="book_author" action="unlink" extra_name="fk_authors" extra_value=row.pk extra_name2="fk_roles" extra_value2=row.fk_roles extra_name3="heading" extra_value3=row.heading label="Unlink" danger=1 confirm="Unlink this author?" %}
-</div>
 </td>
+<td class="act"><span class="actions">{% include "_act.html" with op="book_author" action="unlink" extra_name="fk_authors" extra_value=row.pk extra_name2="fk_roles" extra_value2=row.fk_roles extra_name3="heading" extra_value3=row.heading label="Unlink" danger=1 confirm="Unlink this author?" %}</span></td>
 </tr>
+{% empty %}
+<tr><td colspan="3" class="empty">No authors.</td></tr>
 {% endfor %}
 </tbody>
 </table>
-{% else %}
-<p class="empty">No authors.</p>
-{% endif %}
 </div>
 </div>
-<div class="grid2 section">
-<section class="panel card">
+<div class="section links">
 <h2>Subjects</h2>
-<div class="addbar">
-<form method="post" action="{% url 'change_propose' %}">
+<p class="help">Use the subject # shown next to each subject. Find it with the Subjects search.</p>
+<div class="stack">
+<form method="post" action="{% url 'change_propose' %}" class="addline">
 {% include "_post.html" with op="book_subject" action="link" %}
 <input type="hidden" name="fk_books" value="{{ book.pk }}">
-<label for="new-subject-pk">Subject ID</label>
+<div class="finder">
+<label for="subject-find">Find subject</label>
+<input id="subject-find" type="search" data-search="{% url 'link_search' %}?kind=subject&amp;q=" data-fill="#new-subject-pk" placeholder="Subject" autocomplete="off">
+</div>
+<label for="new-subject-pk">Add subject #</label>
 <input id="new-subject-pk" type="number" name="fk_subjects" min="1" required>
 <button class="primary push">Link</button>
 </form>
-</div>
-<table class="compact">
+<table class="list">
 <thead>
 <tr>
 <th>Subject</th>
-<th></th>
+{% if subjects %}<th class="act"></th>{% endif %}
 </tr>
 </thead>
 <tbody>
 {% for row in subjects %}
 <tr>
-<td>{{ row.subject }}</td>
-<td class="act">
-{% include "_act.html" with op="book_subject" action="unlink" extra_name="fk_subjects" extra_value=row.pk label="Unlink" danger=1 confirm="Unlink this subject?" %}
-</td>
+<td>{{ row.subject }} <span class="meta">#{{ row.pk }}</span></td>
+<td class="act"><span class="actions">{% include "_act.html" with op="book_subject" action="unlink" extra_name="fk_subjects" extra_value=row.pk label="Unlink" danger=1 confirm="Unlink this subject?" %}</span></td>
 </tr>
 {% empty %}
-<tr>
-<td colspan="2" class="empty">No subjects linked.</td>
-</tr>
+<tr><td colspan="2" class="empty">None linked.</td></tr>
 {% endfor %}
 </tbody>
 </table>
-</section>
-<div class="stack">
-<section class="panel card">
-<h2>Categories</h2>
-<form method="post" action="{% url 'change_propose' %}" class="linkline">
-{% include "_post.html" with op="book_category" action="link" %}
-<input type="hidden" name="fk_books" value="{{ book.pk }}">
-<label for="fk_categories">Category</label>
-<select id="fk_categories" name="fk_categories" required>
-{% for key, label in lookups.categories %}
-<option value="{{ key }}">{{ label }}</option>
-{% endfor %}
-</select>
-<button>Link</button>
-</form>
-<table class="compact">
-<thead>
-<tr>
-<th>Category</th>
-<th></th>
-</tr>
-</thead>
-<tbody>
-{% for row in categories %}
-<tr>
-<td>{{ row.category }}</td>
-<td class="act">
-{% include "_act.html" with op="book_category" action="unlink" extra_name="fk_categories" extra_value=row.pk label="Unlink" danger=1 confirm="Unlink this category?" %}
-</td>
-</tr>
-{% empty %}
-<tr>
-<td colspan="2" class="empty">None linked.</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
-</section>
-<section class="panel card">
+</div>
 <h2>Languages</h2>
-<form method="post" action="{% url 'change_propose' %}" class="linkline">
+<div class="stack">
+<form method="post" action="{% url 'change_propose' %}" class="addline">
 {% include "_post.html" with op="book_lang" action="link" %}
 <input type="hidden" name="fk_books" value="{{ book.pk }}">
-<label for="fk_langs_link">Language</label>
+<label for="fk_langs_link">Add language</label>
 <select id="fk_langs_link" name="fk_langs" required>
 {% for key, label in lookups.langs %}
 <option value="{{ key }}">{{ label }}</option>
 {% endfor %}
 </select>
-<button>Link</button>
+<button class="primary push">Link</button>
 </form>
-<table class="compact">
+<table class="list">
 <thead>
 <tr>
 <th>Language</th>
-<th></th>
+{% if langs %}<th class="act"></th>{% endif %}
 </tr>
 </thead>
 <tbody>
 {% for row in langs %}
 <tr>
-<td>{{ row.lang }} ({{ row.pk }})</td>
-<td class="act">
-{% include "_act.html" with op="book_lang" action="unlink" extra_name="fk_langs" extra_value=row.pk label="Unlink" danger=1 confirm="Unlink this language?" %}
-</td>
+<td>{{ row.lang }} <span class="meta">{{ row.pk }}</span></td>
+<td class="act"><span class="actions">{% include "_act.html" with op="book_lang" action="unlink" extra_name="fk_langs" extra_value=row.pk label="Unlink" danger=1 confirm="Unlink this language?" %}</span></td>
 </tr>
 {% empty %}
-<tr>
-<td colspan="2" class="empty">None linked.</td>
-</tr>
+<tr><td colspan="2" class="empty">None linked.</td></tr>
 {% endfor %}
 </tbody>
 </table>
-</section>
-<section class="panel card">
-<h2>LoC classes</h2>
-<form method="post" action="{% url 'change_propose' %}" class="linkline">
+</div>
+<h2>LoC Classes</h2>
+<div class="stack">
+<form method="post" action="{% url 'change_propose' %}" class="addline">
 {% include "_post.html" with op="book_locc" action="link" %}
 <input type="hidden" name="fk_books" value="{{ book.pk }}">
-<label for="fk_loccs">LoC class</label>
+<label for="fk_loccs">Add LoC class</label>
 <select id="fk_loccs" name="fk_loccs" required>
 {% for key, label in lookups.loccs %}
 <option value="{{ key }}">{{ label }}</option>
 {% endfor %}
 </select>
-<button>Link</button>
+<button class="primary push">Link</button>
 </form>
-<table class="compact">
+<table class="list">
 <thead>
 <tr>
-<th>LoC class</th>
-<th></th>
+<th>LoC Class</th>
+{% if loccs %}<th class="act"></th>{% endif %}
 </tr>
 </thead>
 <tbody>
 {% for row in loccs %}
 <tr>
-<td>{{ row.pk }} — {{ row.locc }}</td>
-<td class="act">
-{% include "_act.html" with op="book_locc" action="unlink" extra_name="fk_loccs" extra_value=row.pk label="Unlink" danger=1 confirm="Unlink this LoC class?" %}
-</td>
+<td>{{ row.locc }} <span class="meta">#{{ row.pk }}</span></td>
+<td class="act"><span class="actions">{% include "_act.html" with op="book_locc" action="unlink" extra_name="fk_loccs" extra_value=row.pk label="Unlink" danger=1 confirm="Unlink this LoC class?" %}</span></td>
 </tr>
 {% empty %}
-<tr>
-<td colspan="2" class="empty">None linked.</td>
-</tr>
+<tr><td colspan="2" class="empty">None linked.</td></tr>
 {% endfor %}
 </tbody>
 </table>
-</section>
 </div>
 </div>
-<div class="section marc-section">
-<h2>MARC fields</h2>
-<div class="panel addbar">
-<form method="post" action="{% url 'change_propose' %}" class="marc-form">
+<div class="section">
+<h2>Uncontrolled MARC 21 Fields</h2>
+<p class="gotonav"><a href="https://www.loc.gov/marc/umb/um07to10.html" target="_blank" rel="noopener">A Summary of Commonly Used MARC 21 Fields</a></p>
+<div class="stack">
+<form method="post" action="{% url 'change_propose' %}">
 {% include "_post.html" with op="attribute" action="create" %}
 <input type="hidden" name="fk_books" value="{{ book.pk }}">
 <div class="dlg wide">
 <label for="fk_attriblist">Attribute</label>
-<select id="fk_attriblist" name="fk_attriblist" required>
+<select id="fk_attriblist" name="fk_attriblist" required title="Select an attribute.">
 {% for key, label in lookups.attribs %}
 <option value="{{ key }}"{% if key == 245 %} selected{% endif %}>{{ label }}</option>
 {% endfor %}
 </select>
 <label for="text">Value</label>
-<textarea id="text" name="text" required maxlength="20000"></textarea>
+<textarea id="text" name="text" required maxlength="20000" title="Enter the value for the selected attribute."></textarea>
 <label for="nonfiling">Nonfiling Chars</label>
-<input id="nonfiling" name="nonfiling" type="number" min="0" max="40" value="0" required>
+<input id="nonfiling" name="nonfiling" type="number" min="0" max="40" value="0" required title="No. of nonfiling characters. eg. 'The Idiot' => 4">
 <label for="indicators">MARC indicators</label>
-<input id="indicators" name="indicators" type="text" maxlength="2">
+<input id="indicators" name="indicators" type="text" class="narrow" maxlength="2" title="MARC indicators (2 digits). See MARC Spec for details. If you are unsure leave blank.">
 <label for="fk_langs">Language</label>
-<select id="fk_langs" name="fk_langs">
+<select id="fk_langs" name="fk_langs" title="Which language is this attribute in?">
 <option value="">undefined</option>
 {% for key, label in lookups.langs %}
 <option value="{{ key }}"{% if key == 'en' %} selected{% endif %}>{{ label }}</option>
@@ -266,47 +221,55 @@
 <button class="primary">Add field</button>
 </div>
 </form>
-</div>
-<div class="panel">
 {% if attributes %}
-<table class="compact">
+<table class="list">
 <thead>
 <tr>
 <th>MARC Tag</th>
-<th>Indicators</th>
-<th>Nonfiling</th>
+<th>MARC Indicators</th>
+<th class="num">Nonfiling Chars</th>
 <th>Text</th>
-<th></th>
+<th class="act"></th>
 </tr>
 </thead>
 <tbody>
 {% for row in attributes %}
 <tr>
-<td>{{ row.name }} <span class="meta">{{ row.fk_attriblist }} · {{ row.fk_langs|default:"—" }}</span></td>
+<td>{{ row.name }} <span class="meta">#{{ row.pk }}</span></td>
 <td>{{ row.indicators }}</td>
-<td>{{ row.nonfiling }}</td>
+<td class="num">{{ row.nonfiling }}</td>
 <td>{{ row.text|linebreaksbr }}</td>
 <td class="act">
-<div class="row-edit attr-actions">
+<span class="actions">
 <button type="button" class="attr-toggle" data-target="attr-edit-{{ row.pk }}">Edit</button>
-{% include "_act.html" with op="attribute" action="delete" pk=row.pk label="Delete" danger=1 confirm="Delete this attribute?" %}
-</div>
+{% if row.fk_attriblist != 245 %}{% include "_act.html" with op="attribute" action="delete" pk=row.pk label="Delete" danger=1 confirm="Delete this attribute?" %}{% endif %}
+</span>
 </td>
 </tr>
 <tr id="attr-edit-{{ row.pk }}" class="attr-editor" hidden>
 <td colspan="5">
-<form method="post" action="{% url 'change_propose' %}" class="marc-form">
+<form method="post" action="{% url 'change_propose' %}" class="row-edit">
 {% include "_post.html" with op="attribute" action="update" %}
 <input type="hidden" name="pk" value="{{ row.pk }}">
 <input type="hidden" name="fk_books" value="{{ book.pk }}">
 <input type="hidden" name="fk_attriblist" value="{{ row.fk_attriblist }}">
-<div class="dlg wide">
+<input type="hidden" name="was_text" value="{{ row.text|default_if_none:'' }}">
+<input type="hidden" name="was_nonfiling" value="{{ row.nonfiling|default_if_none:'' }}">
+<input type="hidden" name="was_indicators" value="{{ row.indicators }}">
+<input type="hidden" name="was_fk_langs" value="{{ row.fk_langs|default_if_none:'' }}">
+<span class="fld wide">
 <label for="attr-text-{{ row.pk }}">Value</label>
-<textarea id="attr-text-{{ row.pk }}" name="text" required maxlength="20000">{{ row.text }}</textarea>
+<textarea id="attr-text-{{ row.pk }}" name="text" required maxlength="20000"{% if row.fk_attriblist == 245 %} readonly title="The title is edited in the record above."{% endif %}>{{ row.text }}</textarea>
+</span>
+<span class="fld">
 <label for="attr-nf-{{ row.pk }}">Nonfiling Chars</label>
-<input id="attr-nf-{{ row.pk }}" name="nonfiling" type="number" min="0" max="40" value="{{ row.nonfiling|default:0 }}" required>
+<input id="attr-nf-{{ row.pk }}" name="nonfiling" type="number" class="narrow" min="0" max="40" value="{{ row.nonfiling|default:0 }}" required>
+</span>
+<span class="fld">
 <label for="attr-ind-{{ row.pk }}">MARC indicators</label>
-<input id="attr-ind-{{ row.pk }}" name="indicators" type="text" maxlength="2" value="{{ row.indicators }}">
+<input id="attr-ind-{{ row.pk }}" name="indicators" type="text" class="narrow" maxlength="2" value="{{ row.indicators }}">
+</span>
+<span class="fld">
 <label for="attr-lang-{{ row.pk }}">Language</label>
 <select id="attr-lang-{{ row.pk }}" name="fk_langs">
 <option value=""{% if not row.fk_langs %} selected{% endif %}>undefined</option>
@@ -314,11 +277,11 @@
 <option value="{{ key }}"{% if key == row.fk_langs %} selected{% endif %}>{{ label }}</option>
 {% endfor %}
 </select>
-</div>
-<div class="row">
+</span>
+<span class="btns">
 <button class="save">Save</button>
 <button type="button" class="cancel attr-toggle" data-target="attr-edit-{{ row.pk }}">Cancel</button>
-</div>
+</span>
 </form>
 </td>
 </tr>
@@ -328,6 +291,40 @@
 {% else %}
 <p class="empty">No attributes.</p>
 {% endif %}
+</div>
+</div>
+<div class="section">
+<h2>Categories</h2>
+<div class="stack">
+<form method="post" action="{% url 'change_propose' %}" class="addline">
+{% include "_post.html" with op="book_category" action="link" %}
+<input type="hidden" name="fk_books" value="{{ book.pk }}">
+<label for="fk_categories">Add category</label>
+<select id="fk_categories" name="fk_categories" required>
+{% for key, label in lookups.categories %}
+<option value="{{ key }}">{{ label }}</option>
+{% endfor %}
+</select>
+<button class="primary push">Link</button>
+</form>
+<table class="list">
+<thead>
+<tr>
+<th>Category</th>
+{% if categories %}<th class="act"></th>{% endif %}
+</tr>
+</thead>
+<tbody>
+{% for row in categories %}
+<tr>
+<td>{{ row.category }}</td>
+<td class="act"><span class="actions">{% include "_act.html" with op="book_category" action="unlink" extra_name="fk_categories" extra_value=row.pk label="Unlink" danger=1 confirm="Unlink this category?" %}</span></td>
+</tr>
+{% empty %}
+<tr><td colspan="2" class="empty">None linked.</td></tr>
+{% endfor %}
+</tbody>
+</table>
 </div>
 </div>
 {% endblock %}

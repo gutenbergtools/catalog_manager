@@ -1,5 +1,7 @@
-{% extends "base.html" %} {% block title %}Books - {{ brand }}{% endblock %} {% block content %}
-<h1>Books</h1>
+{% extends "base.html" %}
+{% block title %}Books - {{ brand }}{% endblock %}
+{% block content %}
+<h1>Books{% if q %} {{ q }}{% endif %}</h1>
 <form method="get" class="searchbar" role="search">
 <div class="f">
 <label for="q">Search books</label>
@@ -10,15 +12,16 @@
 <a class="clear" href="{% url 'books' %}">Clear</a>
 {% endif %}
 </form>
-{% if q %}
-<p class="help">Title, author, or ebook number such as 58890.</p>
-{% endif %} {% include "_sorts.html" %} {% include "_pager.html" %}
-<div class="panel">
-{% if books %}
-<table>
+<div class="toolbar">
+{% include "_sorts.html" %}
+{% include "_pager.html" %}
+</div>
+<table class="list">
+<caption>Books</caption>
 <thead>
 <tr>
-<th class="num">ID</th>
+<th class="num">Nr.</th>
+<th>Author</th>
 <th>Title</th>
 <th class="num">Downloads</th>
 </tr>
@@ -27,21 +30,19 @@
 {% for book in books %}
 <tr>
 <td class="num">{{ book.pk }}</td>
+<td>{% if book.authors %}{{ book.authors }}{% endif %}</td>
 <td>
 <a href="{% url 'book' book.pk %}">{{ book.title }}</a>
 {% if book.subtitle %}
 <span class="meta">{{ book.subtitle }}</span>
-{% endif %} {% if book.authors %}
-<span class="meta">{{ book.authors }}</span>
 {% endif %}
 </td>
 <td class="num">{{ book.downloads }}</td>
 </tr>
+{% empty %}
+<tr><td colspan="4" class="empty">No ebooks matched “{{ q }}”.</td></tr>
 {% endfor %}
 </tbody>
 </table>
-{% else %}
-<p class="empty">No ebooks matched “{{ q }}”.</p>
-{% endif %}
-</div>
+{% include "_pager.html" %}
 {% endblock %}

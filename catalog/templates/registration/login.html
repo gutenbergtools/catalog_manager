@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Sign in - {{ brand }}{% endblock %}
 {% block content %}
-<div class="panel box auth-box">
+<div class="box auth-box">
 <h1>Sign in</h1>
 {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
 {% if form.errors and not form.non_field_errors %}<div class="msg error">That username and password did not match.</div>{% endif %}

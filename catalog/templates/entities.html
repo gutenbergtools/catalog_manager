@@ -1,18 +1,22 @@
-{% extends "base.html" %} {% block title %}{{ title }} - {{ brand }}{% endblock %} {% block content %}
-<h1>{{ title }}</h1>
-<details class="panel add-toggle">
+{% extends "base.html" %}
+{% block title %}{{ title }} - {{ brand }}{% endblock %}
+{% block content %}
+<h1>{{ title }}{% if q %} {{ q }}{% endif %}</h1>
+<details class="add-toggle">
 <summary>Add {{ kind|lower }}</summary>
 <form method="post" action="{% url 'change_propose' %}">
 {% include "_post.html" with action="create" %}
 <input type="hidden" name="next" value="{{ request.get_full_path }}">
-<div class="fields">
+<table class="dialog">
+<tbody>
 {% for name, label, type, maxlen in fields %}
-<div>
-<label for="id_{{ name }}">{{ label }}</label>
-<input id="id_{{ name }}" name="{{ name }}" type="{{ type }}" required maxlength="{{ maxlen }}">
-</div>
+<tr>
+<th><label for="id_{{ name }}">{{ label }}</label></th>
+<td><input id="id_{{ name }}" name="{{ name }}" type="{{ type }}" required maxlength="{{ maxlen }}"></td>
+</tr>
 {% endfor %}
-</div>
+</tbody>
+</table>
 <div class="row">
 <button class="primary">Add</button>
 </div>
@@ -26,13 +30,13 @@
 <button type="submit">Search</button>
 {% if q %}<a class="clear" href="{{ list_path }}">Clear</a>{% endif %}
 </form>
-<div class="panel">
-{% if rows %}
-<table>
+{% include "_pager.html" %}
+<table class="list">
+<caption>{{ title }}</caption>
 <thead>
 <tr>
-<th class="num">ID</th>
-<th>Name</th>
+<th class="num">{% if str_pk %}Code{% else %}#{% endif %}</th>
+<th>{{ kind }}</th>
 </tr>
 </thead>
 <tbody>
@@ -40,13 +44,10 @@
 <tr>
 <td class="num">{{ row.pk }}</td>
 <td><a href="{% url detail row.pk %}">{{ row.name }}</a></td>
-</tr>
+{% empty %}
+<tr><td colspan="2" class="empty">No matches.</td></tr>
 {% endfor %}
 </tbody>
 </table>
-{% else %}
-<p class="empty">{% if q %}No matches.{% else %}None.{% endif %}</p>
-{% endif %}
-</div>
 {% include "_pager.html" %}
 {% endblock %}

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Read This First - {{ brand }}{% endblock %}
+{% block content %}
+<h1>Read This First</h1>
+
+<h2>Entities and relations</h2>
+
+<p>In this catalog you will find 2 different recurring concepts:</p>
+
+<ul>
+<li>the entity</li>
+<li>the relation (or link).</li>
+</ul>
+
+<p>Don't confuse database link (relation) with HTML-link (underlined
+text to click.)</p>
+
+<p>Book, Author, Subject, Category, Language and LoC Class are entities.</p>
+
+<p>Book-Author, Book-Subject, Book-Category, Book-Language and
+Book-LoC Class are relations.</p>
+
+<p>You can <strong>add</strong>, <strong>edit</strong> and
+<strong>delete</strong> entities. You can create and remove links
+between existing entities (<strong>link</strong> and
+<strong>unlink</strong> entities). Remember: to link you have to
+create the entities first. Of course, if you find that the entity
+already exists in the catalog, you should not create it again.</p>
+
+<p>The advantage of the entity and link concept is that you have to
+enter data only once. Every author exists only once in the database.
+You have to enter the date of birth and of death only once. You have
+to enter the pseudonyms and different orthographies of the name only
+once. If you find an error, you have to fix it only once.</p>
+
+<h2>Working by ID</h2>
+
+<p>Everything here works by ID. To link something to a book or author,
+you enter the ID of the thing you want to link:</p>
+
+<ol>
+<li>Find the ebook or author with the Books or Authors search here,
+or with the search on <a href="https://www.gutenberg.org/">www.gutenberg.org</a>.</li>
+<li>Note its ID: the ebook number, the author number, the internal
+subject #, the 2-letter language code, the LoC class code.</li>
+<li>Enter that ID in the box on the book's or author's page and press
+the Link button.</li>
+</ol>
+
+<h2>HTML-Links and Buttons</h2>
+
+<p>Clicking on a HTML-link will never alter any data.</p>
+
+<p>Clicking on a button with add, edit, delete, link or unlink in the
+caption will alter data.</p>
+
+<h2>Starting points</h2>
+
+<h4><a href="{% url 'books' %}">Books</a></h4>
+
+<p>Manage the record, authors, MARC fields, subjects, categories,
+languages and LoC classes of a book.</p>
+
+<h4><a href="{% url 'authors' %}">Authors</a></h4>
+
+<p>Manage authors, author aliases and the books linked to an author.</p>
+
+<h4><a href="{% url 'subjects' %}">Subjects</a></h4>
+
+<p>Manage subjects.</p>
+
+<h4><a href="{% url 'categories' %}">Categories</a></h4>
+
+<p>Manage categories.</p>
+
+<h4><a href="{% url 'loccs' %}">LoC Classes</a></h4>
+
+<p>Manage LoC Classes.</p>
+
+<h4><a href="{% url 'langs' %}">Languages</a></h4>
+
+<p>Manage languages. You will seldom need this, as most languages are
+already entered.</p>
+
+<h4><a href="{% url 'password' %}">Change Password</a></h4>
+
+<p>Change your password. You'll probably have to login again.</p>
+
+<p class="help">Anything you don't like, or would like changed? Please
+ask the devs.</p>
+{% endblock %}

@@ -9,14 +9,17 @@
 {% block title %}{{ brand }}{% endblock %}
 </title>
 <link rel="stylesheet" href="{% static 'catalog.css' %}">
-<script src="{% static 'catalog.js' %}?v=12" defer>
+<script src="{% static 'catalog.js' %}" defer>
 </script>
 </head>
 <body>
 <header>
 <div class="title-bar">
 <div class="container title-row">
-<a class="brand" href="{% url 'books' %}">{{ brand }}</a>
+<a class="brand" href="{% url 'home' %}" title="Project Gutenberg {{ brand }}">
+<img class="logo" src="{% static 'pg-logo-129x80.png' %}" alt="Project Gutenberg">
+<span class="brand-name">{{ brand }}</span>
+</a>
 {% if user.is_authenticated %}
 <div class="account">
 <span>{{ user.username }}</span>
@@ -32,14 +35,22 @@
 {% if user.is_authenticated %}
 <div class="nav-bar">
 <nav class="container nav-row" aria-label="Catalog">
+<a href="{% url 'home' %}">Read This First</a>
+<span class="menusep">--</span>
 <a href="{% url 'books' %}">Books</a>
+<span class="menusep">--</span>
 <a href="{% url 'authors' %}">Authors</a>
-<a href="/subjects/">Subjects</a>
-<a href="/categories/">Categories</a>
-<a href="/languages/">Languages</a>
-<a href="/loccs/">LoC Classes</a>
+<span class="menusep">--</span>
+<a href="{% url 'subjects' %}">Subjects</a>
+<span class="menusep">--</span>
+<a href="{% url 'categories' %}">Categories</a>
+<span class="menusep">--</span>
+<a href="{% url 'langs' %}">Languages</a>
+<span class="menusep">--</span>
+<a href="{% url 'loccs' %}">LoC Classes</a>
 {% if user.is_staff %}
-<a href="/{{ admin_url }}/">Admin</a>
+<span class="menusep">--</span>
+<a href="{% url 'admin:index' %}">Admin</a>
 {% endif %}
 </nav>
 </div>
@@ -49,7 +60,8 @@
 <div class="container">
 {% for message in messages %}
 <div class="msg {{ message.tags }}">{{ message }}</div>
-{% endfor %} {% block content %}{% endblock %}
+{% endfor %}
+{% block content %}{% endblock %}
 </div>
 </main>
 </body>

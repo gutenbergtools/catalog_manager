@@ -1,51 +1,62 @@
-{% extends "base.html" %} {% block title %}{{ author.author }} - {{ brand }}{% endblock %} {% block content %}
-<nav class="links-nav" aria-label="Author shortcuts">
-<a href="{% url 'authors' %}">All authors</a>
-</nav>
+{% extends "base.html" %}
+{% block title %}{{ author.author }} - {{ brand }}{% endblock %}
+{% block content %}
 <h1>{{ author.author }}</h1>
 <p class="sub">Author #{{ author.pk }} · {{ nbooks }} book{{ nbooks|pluralize }}</p>
-<form method="post" action="{% url 'change_propose' %}" class="panel box section">
+<form method="post" action="{% url 'change_propose' %}" class="section">
 {% include "_post.html" with op="author" action="update" %}
 <input type="hidden" name="pk" value="{{ author.pk }}">
+<table class="dialog wide">
+<tbody>
 {% include "_author_fields.html" %}
-<div class="row">
+<tr class="buttons-row">
+<th></th>
+<td class="buttons">
 {% if nbooks == 0 %}
-<button class="danger" type="submit" form="delete-form" data-confirm="Delete this author?">Delete</button>
+<button class="danger" type="submit" form="delete-form" data-confirm="Delete this author?">Delete Author</button>
 {% endif %}
 <button class="save">Save</button>
 <button type="button" class="cancel">Cancel</button>
-</div>
+</td>
+</tr>
+</tbody>
+</table>
 </form>
 {% if nbooks == 0 %}{% include "_delete.html" with op="author" pk=author.pk next="/authors/" %}{% endif %}
-<div class="section">
-<h2>Books</h2>
-<div class="panel addbar">
-<form method="post" action="{% url 'change_propose' %}">
+<details class="section" open>
+<summary>Books <span class="n">({{ nbooks }})</span></summary>
+<div class="toolbar">
+{% include "_sorts.html" %}
+</div>
+<div class="stack">
+<form method="post" action="{% url 'change_propose' %}" class="addline">
 {% include "_post.html" with op="book_author" action="link" %}
 <input type="hidden" name="fk_authors" value="{{ author.pk }}">
+<div class="finder">
+<label for="book-find">Find book</label>
+<input id="book-find" type="search" data-search="{% url 'link_search' %}?kind=book&amp;q=" data-fill="#new-book-pk" placeholder="Title" autocomplete="off">
+</div>
 <label for="new-book-pk">Ebook ID</label>
 <input id="new-book-pk" type="number" name="fk_books" min="1" required>
 <label class="vh" for="new-book-role">Role</label>
-<select id="new-book-role" name="fk_roles" title="Author role">
+<select id="new-book-role" name="fk_roles" required title="In which role did this author contribute to the book?">
 {% for key, label in lookups.roles %}
 <option value="{{ key }}"{% if key == 'cr' %} selected{% endif %}>{{ label }}</option>
 {% endfor %}
 </select>
 <label class="vh" for="new-book-heading">Heading</label>
-<select id="new-book-heading" name="heading" title="Heading">
+<select id="new-book-heading" name="heading" title="Should this author generate a user-visible heading?">
 <option value="1" selected>Heading</option>
-<option value="0">No heading</option>
+<option value="0">No-Heading</option>
 </select>
 <button class="primary push">Link</button>
 </form>
-</div>
-<div class="panel">
-{% if books %}
-<table class="compact">
+<table class="list">
 <thead>
 <tr>
 <th>Title</th>
 <th>Role</th>
+{% if books %}<th class="act"></th>{% endif %}
 </tr>
 </thead>
 <tbody>
@@ -56,8 +67,7 @@
 <span class="meta">#{{ row.pk }}</span>
 </td>
 <td>
-<div class="row-edit tight">
-<form method="post" action="{% url 'change_propose' %}" class="row-edit tight">
+<form method="post" action="{% url 'change_propose' %}" class="row-edit">
 {% include "_post.html" with op="book_author" action="update" %}
 <input type="hidden" name="fk_books" value="{{ row.pk }}">
 <input type="hidden" name="fk_authors" value="{{ author.pk }}">
@@ -71,86 +81,79 @@
 <label class="vh" for="book-head-{{ row.pk }}-{{ row.fk_roles }}">Heading</label>
 <select id="book-head-{{ row.pk }}-{{ row.fk_roles }}" name="heading" title="Heading">
 <option value="1"{% if row.heading %} selected{% endif %}>Heading</option>
-<option value="0"{% if not row.heading %} selected{% endif %}>No heading</option>
+<option value="0"{% if not row.heading %} selected{% endif %}>No-Heading</option>
 </select>
-<button>Save</button>
+<button class="save">Save</button>
 <button type="button" class="cancel">Cancel</button>
 </form>
-{% include "_act.html" with op="book_author" action="unlink" extra_name="fk_books" extra_value=row.pk extra_name2="fk_roles" extra_value2=row.fk_roles extra_name3="heading" extra_value3=row.heading label="Unlink" danger=1 confirm="Unlink this book?" %}
-</div>
 </td>
+<td class="act"><span class="actions">{% include "_act.html" with op="book_author" action="unlink" extra_name="fk_books" extra_value=row.pk extra_name2="fk_roles" extra_value2=row.fk_roles extra_name3="heading" extra_value3=row.heading label="Unlink" danger=1 confirm="Unlink this book?" %}</span></td>
 </tr>
+{% empty %}
+<tr><td colspan="3" class="empty">No books linked.</td></tr>
 {% endfor %}
 </tbody>
 </table>
-{% else %}
-<p class="empty">No books linked.</p>
-{% endif %}
 </div>
-</div>
+</details>
 <div class="section">
-<section class="panel card">
 <h2>Aliases</h2>
 <p class="help">Less prominent names and pseudonyms the author is also known under, ASCII-fied versions, variant orthographies, common mis-spellings (Gutenburg).</p>
-<div class="addbar">
-<form method="post" action="{% url 'change_propose' %}">
+<div class="stack">
+<form method="post" action="{% url 'change_propose' %}" class="addline">
 {% include "_post.html" with op="alias" action="create" %}
 <input type="hidden" name="fk_authors" value="{{ author.pk }}">
 <label for="alias">Alias</label>
 <input id="alias" name="alias" type="text" required maxlength="240">
 <label class="vh" for="alias-heading">Heading</label>
 <select id="alias-heading" name="heading" title="Should this alias generate a user-visible heading?">
-<option value="1" selected>Yes</option>
-<option value="0">No</option>
+<option value="1" selected>Heading</option>
+<option value="0">No-Heading</option>
 </select>
 <button class="primary push">Add</button>
 </form>
-</div>
-{% if aliases %}
-<table class="compact">
+<table class="list">
 <thead>
 <tr>
 <th>Alias</th>
 <th>Heading</th>
-<th>
-</th>
+{% if aliases %}<th class="act"></th>{% endif %}
 </tr>
 </thead>
 <tbody>
 {% for row in aliases %}
 <tr>
-<td colspan="2">
-<form method="post" action="{% url 'change_propose' %}" class="row-edit tight">
+<td>
+<form id="alias-form-{{ row.pk }}" method="post" action="{% url 'change_propose' %}" hidden>
 {% include "_post.html" with op="alias" action="update" %}
 <input type="hidden" name="pk" value="{{ row.pk }}">
 <input type="hidden" name="fk_authors" value="{{ author.pk }}">
-<label class="vh" for="alias-{{ row.pk }}">Alias</label>
-<input id="alias-{{ row.pk }}" name="alias" type="text" required maxlength="240" value="{{ row.alias }}" title="Alias">
-<label class="vh" for="heading-{{ row.pk }}">Heading</label>
-<select id="heading-{{ row.pk }}" name="heading" title="Heading">
-<option value="1"{% if row.heading %} selected{% endif %}>Yes</option>
-<option value="0"{% if not row.heading %} selected{% endif %}>No</option>
-</select>
-<button>Save</button>
-<button type="button" class="cancel">Cancel</button>
+<input type="hidden" name="was_alias" value="{{ row.alias|default_if_none:'' }}">
+<input type="hidden" name="was_heading" value="{{ row.heading }}">
 </form>
+<label class="vh" for="alias-{{ row.pk }}">Alias</label>
+<input id="alias-{{ row.pk }}" name="alias" form="alias-form-{{ row.pk }}" type="text" required maxlength="240" value="{{ row.alias }}" title="Alias">
+</td>
+<td>
+<div class="row-edit">
+<label class="vh" for="heading-{{ row.pk }}">Heading</label>
+<select id="heading-{{ row.pk }}" name="heading" form="alias-form-{{ row.pk }}" title="Heading">
+<option value="1"{% if row.heading %} selected{% endif %}>Heading</option>
+<option value="0"{% if not row.heading %} selected{% endif %}>No-Heading</option>
+</select>
+<button class="save" form="alias-form-{{ row.pk }}">Save</button>
+<button type="button" class="cancel" form="alias-form-{{ row.pk }}">Cancel</button>
+</div>
 </td>
 <td class="act">
-{% include "_act.html" with op="alias" action="delete" pk=row.pk label="Delete" danger=1 confirm="Delete this alias?" %}
+<span class="actions">{% include "_act.html" with op="alias" action="delete" pk=row.pk label="Delete" danger=1 confirm="Delete this alias?" %}</span>
 </td>
 </tr>
+{% empty %}
+<tr><td colspan="3" class="empty">No aliases.</td></tr>
 {% endfor %}
 </tbody>
 </table>
-{% else %}
-<table class="compact">
-<tbody>
-<tr>
-<td class="empty">No aliases.</td>
-</tr>
-</tbody>
-</table>
-{% endif %}
-</section>
+</div>
 </div>
 {% endblock %}
