@@ -237,17 +237,15 @@
 <td>{{ row.name }} <span class="meta">#{{ row.pk }}</span></td>
 <td>{{ row.indicators }}</td>
 <td class="num">{{ row.nonfiling }}</td>
-{% if row.fk_attriblist == 245 %}
-<td colspan="2">{{ row.text|linebreaksbr }}</td>
-{% else %}
 <td>{{ row.text|linebreaksbr }}</td>
 <td class="act">
+{% if row.fk_attriblist != 245 %}
 <span class="actions">
 <button type="button" class="attr-toggle" data-target="attr-edit-{{ row.pk }}">Edit</button>
 {% include "_act.html" with op="attribute" action="delete" pk=row.pk label="Delete" danger=1 confirm="Delete this attribute?" %}
 </span>
-</td>
 {% endif %}
+</td>
 </tr>
 {% if row.fk_attriblist != 245 %}
 <tr id="attr-edit-{{ row.pk }}" class="attr-editor" hidden>

@@ -152,9 +152,13 @@ table.list input, table.list select { max-width: 14rem; }
 .book-edit { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; align-items: flex-end; }
 .book-edit .book-fields { flex: 0 1 auto; margin-bottom: 0; }
 .book-edit .save { margin-left: auto; }
-.book-fields { display: grid; grid-template-columns: 10rem minmax(10rem, 22rem); gap: .45rem 1rem; align-items: center; margin-bottom: .5rem; }
+.book-fields { display: grid; grid-template-columns: 10rem minmax(10rem, 26rem); gap: .45rem 1rem; align-items: center; margin-bottom: .5rem; }
 .book-fields label { margin: 0; }
-.book-fields input[type="text"], .book-fields input[type="number"] { width: 100%; }
+.book-fields label.top { align-self: start; padding-top: .55rem; }
+.book-fields input[type="text"], .book-fields input[type="number"], .book-fields textarea { width: 100%; }
+.book-fields #release_date { max-width: 9rem; }
+.book-fields #nonfiling { max-width: 7rem; }
+.book-fields textarea { min-height: 3.4rem; }
 .book-fields input[type="checkbox"] { width: auto; justify-self: start; }
 .static-value { display: flex; align-items: center; min-height: 2.35rem; font-size: .95rem; color: var(--text); font-weight: 600; }
 
@@ -168,6 +172,7 @@ table.dialog th, table.dialog td {
 }
 table.dialog th { background: var(--caption-bg); font-weight: bold; width: 1%; white-space: nowrap; }
 table.dialog input[type="number"] { width: 7rem; }
+table.dialog textarea { width: 100%; }
 table.dialog.wide { max-width: 60rem; }
 table.dialog td.buttons { text-align: right; white-space: nowrap; }
 table.dialog td.buttons button + button { margin-left: .5rem; }

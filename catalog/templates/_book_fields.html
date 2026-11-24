@@ -8,8 +8,8 @@
 {% endif %}
 <label for="release_date">Release Date</label>
 <input id="release_date" name="release_date" type="text" maxlength="20" value="{% if book %}{{ book.release_date }}{% else %}{% now 'Y-m-d' %}{% endif %}" title="Enter the official release date.">
-<label for="title">Title (MARC 245)</label>
-<input id="title" name="title" type="text" required maxlength="500" value="{% if book %}{{ book.title }}{% endif %}" title="Enter the title.">
+<label for="title" class="top">Title (MARC 245)</label>
+<textarea id="title" name="title" required maxlength="500" rows="3" title="Enter the title. A long title may continue on a new line.">{% if book %}{{ book.title }}{% endif %}</textarea>
 <label for="nonfiling">Nonfiling Chars</label>
 <input id="nonfiling" name="nonfiling" type="number" min="0" max="40" value="{{ nonfiling|default:0 }}" title="Leading characters ignored when filing the title, e.g. 'The Idiot' => 4.">
 <label for="copyrighted">Copyrighted</label>
