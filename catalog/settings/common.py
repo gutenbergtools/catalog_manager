@@ -1,8 +1,6 @@
 import os
 from pathlib import Path
 
-from django.core.exceptions import ImproperlyConfigured
-
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
@@ -17,9 +15,9 @@ def env_list(key, default=""):
 LOG_DIR = Path(env("DJANGO_LOG_DIR", str(BASE_DIR / "logs")))
 _DEFAULT_KEY = "insecure-development-key-do-not-use-in-production"
 SECRET_KEY = env("DJANGO_SECRET_KEY", _DEFAULT_KEY)
-DEBUG = env("DJANGO_DEBUG", "1") == "1"
-if not DEBUG and SECRET_KEY == _DEFAULT_KEY:
-    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DEBUG=0.")
+DEBUG = env("DJANGO_DEBUG", "0") == "1"
+# The refuse-to-boot check for the default key lives in wsgi.py: it can only
+# run after the full settings (including local_settings) have loaded.
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost")
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 for _key, _default in (
@@ -134,16 +132,22 @@ X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-if env("DJANGO_SECURE_COOKIES", "0") == "1":
+secure = env("DJANGO_SECURE_COOKIES", "0" if DEBUG else "1") == "1"
+if secure:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 31536000
+# The redirect stays opt-in: behind a TLS-terminating proxy that does not
+# pass X-Forwarded-Proto it loops, so the proxy should send http -> https.
+if env("DJANGO_SSL_REDIRECT", "0") == "1":
+    SECURE_SSL_REDIRECT = True
 PAGE_SIZE = int(env("CATALOG_PAGE_SIZE", "50"))
 RATE_LOGIN = env("CATALOG_RATE_LOGIN", "10/m")
+RATE_LOGIN_USER = env("CATALOG_RATE_LOGIN_USER", "10/m")
 RATE_POST = env("CATALOG_RATE_POST", "60/m")
 CATALOG_TRUSTED_PROXIES = env_list("CATALOG_TRUSTED_PROXIES", "127.0.0.1,::1")
 # Callable path: django-ratelimit resolves X-Real-IP only from trusted proxies.
 RATELIMIT_IP_META_KEY = "catalog.proxy.client_ip"
 CATALOG_CATALOGERS = env_list("CATALOG_CATALOGERS")
+CATALOG_DEV_SUPERUSER = env("CATALOG_DEV_SUPERUSER", "0") == "1"
 os.makedirs(LOG_DIR, exist_ok=True)

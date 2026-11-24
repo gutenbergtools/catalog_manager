@@ -1,0 +1,9 @@
+# Exact versions of the current deployment; installs with:
+#   pip install -r requirements.lock
+Django==5.2.19
+SQLAlchemy==2.1.9
+psycopg[binary]==3.3.9
+libgutenberg==0.11.7
+django-ratelimit==4.1.0
+whitenoise==6.12.0
+gunicorn==27.0.1

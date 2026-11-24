@@ -18,7 +18,7 @@ def _listed(user, *names):
         return False
     if _email(user) in _emails(*names):
         return True
-    return bool(settings.DEBUG and getattr(user, "is_superuser", False))
+    return bool(settings.CATALOG_DEV_SUPERUSER and getattr(user, "is_superuser", False))
 
 
 def is_cataloger(user):
