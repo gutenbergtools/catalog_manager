@@ -243,16 +243,27 @@ def add_entity(name, model, pk_name, label_field, form, str_pk=False, in_use=Non
 
 # Book
 
+def _book_snap(session, pk):
+    row = _pick(c.book_row(session, pk), ("pk", "release_date", "title", "copyrighted", "updatemode"))
+    if row:
+        a = _m().Attribute
+        row["nonfiling"] = session.scalar(select(a.nonfiling).where(a.fk_books == pk, a.fk_attriblist == 245)) or 0
+    return row
+
+
 def _book_val(session, action, data, before):
     if action == "delete":
         raise Bad("Books cannot be deleted here.")
     exists_state(action, before, "ebook")
-    _refuse_stale(before, data, ("release_date", "title", "copyrighted", "updatemode"))
+    _refuse_stale(before, data, ("release_date", "title", "nonfiling", "copyrighted", "updatemode"))
     data["release_date"] = data.get("release_date") or date.today().isoformat()
     data["copyrighted"] = data.get("copyrighted") or 0
     data["updatemode"] = data.get("updatemode") or 0
+    data["nonfiling"] = data.get("nonfiling") or 0
     if not (data.get("title") or "").strip():
         raise Bad("Enter a title.")
+    if data["nonfiling"] > len(data["title"]):
+        raise Bad("Nonfiling characters cannot be longer than the title.")
     return data
 
 
@@ -272,15 +283,18 @@ def _book_apply(session, action, before, after):
             "updatemode": after.get("updatemode") or 0,
         },
     )
-    if action == "create" or (action == "update" and (before or {}).get("title") != after.get("title")):
+    if action == "create" or (
+        action == "update"
+        and ((before or {}).get("title") != after.get("title") or (before or {}).get("nonfiling") != after.get("nonfiling"))
+    ):
         # books.title is only a cache of the MARC 245 value, so edit the source
         # field too or the trigger would immediately restore the old title.
         result = session.execute(
             text(
-                "update attributes set text = :t "
+                "update attributes set text = :t, nonfiling = :n "
                 "where fk_books = :b and fk_attriblist = 245"
             ),
-            {"t": after.get("title") or "", "b": after["pk"]},
+            {"t": after.get("title") or "", "n": after.get("nonfiling") or 0, "b": after["pk"]},
         )
         if not result.rowcount:
             session.execute(
@@ -288,7 +302,7 @@ def _book_apply(session, action, before, after):
                     "insert into attributes (fk_books, fk_attriblist, text, nonfiling) "
                     "values (:b, 245, :t, :n)"
                 ),
-                {"b": after["pk"], "t": after.get("title") or "", "n": _article_len(after.get("title"))},
+                {"b": after["pk"], "t": after.get("title") or "", "n": after.get("nonfiling") or _article_len(after.get("title"))},
             )
         refresh_book_title(session, after["pk"])
     return row
@@ -318,7 +332,7 @@ Op(
     "book",
     form=BookForm,
     optional_pk=False,
-    snapshot=snap_pk(lambda s, pk: _pick(c.book_row(s, pk), ("pk", "release_date", "title", "copyrighted", "updatemode"))),
+    snapshot=_book_snap,
     validate=_book_val,
     apply=_book_apply,
     compat_sql=_book_sql,

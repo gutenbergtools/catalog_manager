@@ -156,7 +156,6 @@ table.list input, table.list select { max-width: 14rem; }
 .book-fields label { margin: 0; }
 .book-fields input[type="text"], .book-fields input[type="number"] { width: 100%; }
 .book-fields input[type="checkbox"] { width: auto; justify-self: start; }
-.book-fields .field-help { grid-column: 2; font-size: .8125rem; color: var(--muted); }
 .static-value { display: flex; align-items: center; min-height: 2.35rem; font-size: .95rem; color: var(--text); font-weight: 600; }
 
 table.dialog {

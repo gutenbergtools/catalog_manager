@@ -8,15 +8,17 @@
 {% endif %}
 <label for="release_date">Release Date</label>
 <input id="release_date" name="release_date" type="text" maxlength="20" value="{% if book %}{{ book.release_date }}{% else %}{% now 'Y-m-d' %}{% endif %}" title="Enter the official release date.">
-<label for="title">Title</label>
+<label for="title">Title (MARC 245)</label>
 <input id="title" name="title" type="text" required maxlength="500" value="{% if book %}{{ book.title }}{% endif %}" title="Enter the title.">
-<span class="field-help">Linked to the MARC 245 field below, where its nonfiling is also set.</span>
+<label for="nonfiling">Nonfiling Chars</label>
+<input id="nonfiling" name="nonfiling" type="number" min="0" max="40" value="{{ nonfiling|default:0 }}" title="Leading characters ignored when filing the title, e.g. 'The Idiot' => 4.">
 <label for="copyrighted">Copyrighted</label>
 <input id="copyrighted" name="copyrighted" type="checkbox" value="1" title="Check if book is copyrighted."{% if book and book.copyrighted %} checked{% endif %}>
 <input type="hidden" name="updatemode" value="{{ book.updatemode|default:0 }}">
 {% if book %}
 <input type="hidden" name="was_title" value="{{ book.title }}">
 <input type="hidden" name="was_release_date" value="{{ book.release_date }}">
+<input type="hidden" name="was_nonfiling" value="{{ nonfiling|default:0 }}">
 <input type="hidden" name="was_copyrighted" value="{{ book.copyrighted }}">
 <input type="hidden" name="was_updatemode" value="{{ book.updatemode }}">
 {% endif %}

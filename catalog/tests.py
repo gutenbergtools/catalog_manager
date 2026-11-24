@@ -191,7 +191,7 @@ class StaleTests(SimpleTestCase):
 
 
 class BookStaleTests(SimpleTestCase):
-    BEFORE = {"pk": 11, "release_date": "2026-11-23", "title": "New", "copyrighted": 0, "updatemode": 0}
+    BEFORE = {"pk": 11, "release_date": "2026-11-23", "title": "New", "copyrighted": 0, "updatemode": 0, "nonfiling": 0}
 
     @staticmethod
     def post(**extra):
@@ -217,6 +217,16 @@ class BookStaleTests(SimpleTestCase):
         self.assertIs(_book_val(None, "update", data, self.BEFORE), data)
         legacy = cleaned(BookForm, self.post(), action="update")
         self.assertIs(_book_val(None, "update", legacy, self.BEFORE), legacy)
+
+    def test_stale_nonfiling_refused(self):
+        data = cleaned(BookForm, self.post(was_nonfiling="4"), action="update")
+        with self.assertRaisesMessage(Bad, "changed after you opened it"):
+            _book_val(None, "update", data, self.BEFORE)
+
+    def test_nonfiling_over_title_refused(self):
+        data = cleaned(BookForm, self.post(nonfiling="40"), action="update")
+        with self.assertRaisesMessage(Bad, "cannot be longer than the title"):
+            _book_val(None, "update", data, self.BEFORE)
 
 
 class LoginUserRateTests(TestCase):

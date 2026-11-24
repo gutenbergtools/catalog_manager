@@ -237,14 +237,19 @@
 <td>{{ row.name }} <span class="meta">#{{ row.pk }}</span></td>
 <td>{{ row.indicators }}</td>
 <td class="num">{{ row.nonfiling }}</td>
+{% if row.fk_attriblist == 245 %}
+<td colspan="2">{{ row.text|linebreaksbr }}</td>
+{% else %}
 <td>{{ row.text|linebreaksbr }}</td>
 <td class="act">
 <span class="actions">
 <button type="button" class="attr-toggle" data-target="attr-edit-{{ row.pk }}">Edit</button>
-{% if row.fk_attriblist != 245 %}{% include "_act.html" with op="attribute" action="delete" pk=row.pk label="Delete" danger=1 confirm="Delete this attribute?" %}{% endif %}
+{% include "_act.html" with op="attribute" action="delete" pk=row.pk label="Delete" danger=1 confirm="Delete this attribute?" %}
 </span>
 </td>
+{% endif %}
 </tr>
+{% if row.fk_attriblist != 245 %}
 <tr id="attr-edit-{{ row.pk }}" class="attr-editor" hidden>
 <td colspan="5">
 <form method="post" action="{% url 'change_propose' %}" class="row-edit">
@@ -258,7 +263,7 @@
 <input type="hidden" name="was_fk_langs" value="{{ row.fk_langs|default_if_none:'' }}">
 <span class="fld wide">
 <label for="attr-text-{{ row.pk }}">Value</label>
-<textarea id="attr-text-{{ row.pk }}" name="text" required maxlength="20000"{% if row.fk_attriblist == 245 %} readonly title="The title is edited in the record above."{% endif %}>{{ row.text }}</textarea>
+<textarea id="attr-text-{{ row.pk }}" name="text" required maxlength="20000">{{ row.text }}</textarea>
 </span>
 <span class="fld">
 <label for="attr-nf-{{ row.pk }}">Nonfiling Chars</label>
@@ -284,6 +289,7 @@
 </form>
 </td>
 </tr>
+{% endif %}
 {% endfor %}
 </tbody>
 </table>

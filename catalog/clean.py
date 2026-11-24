@@ -77,10 +77,12 @@ BookForm = F(
     pk=forms.IntegerField(min_value=1, max_value=99999999),
     title=TextField(max_length=500, required=False),
     release_date=forms.DateField(input_formats=["%Y-%m-%d"], required=False),
+    nonfiling=forms.IntegerField(min_value=0, max_value=40, required=False),
     copyrighted=FlagField(required=False),
     updatemode=FlagField(required=False),
     was_title=TextField(max_length=500, required=False),
     was_release_date=TextField(required=False),
+    was_nonfiling=TextField(required=False),
     was_copyrighted=TextField(required=False),
     was_updatemode=TextField(required=False),
 )
