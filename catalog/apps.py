@@ -29,6 +29,10 @@ def ensure_schema(sender, connection, **kwargs):
     if connection.vendor != "postgresql":
         return
     schema = settings.AUTH_SCHEMA
+    options = (connection.settings_dict.get("OPTIONS") or {}).get("options") or ""
+    if ("-csearch_path=%s" % schema) not in options.replace(" ", ""):
+        # A local_settings DATABASES pin owns the layout; leave it alone.
+        return
     key = (schema, connection.settings_dict.get("NAME"))
     if key in _ensured:
         return
