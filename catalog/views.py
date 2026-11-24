@@ -1,21 +1,26 @@
+import logging
 import re
+from urllib.parse import quote_plus
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import views as auth
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
+from sqlalchemy.exc import DataError, IntegrityError
 
 from . import catalog as c
 from . import changes as ch
 from .clean import Bad
 from .models import can_use_app
+
+log = logging.getLogger(__name__)
 
 
 def _num(raw, default):
@@ -94,6 +99,10 @@ AUTHOR_SORTS = [
     ("newest", "Newest added"),
     ("downloads", "Most downloaded"),
 ]
+AUTHOR_BOOK_SORTS = [
+    ("ebook", "Ebook number"),
+    ("title", "Title A–Z"),
+]
 
 
 def _listing(request, fetch, template, key, extra=None, sorts=None):
@@ -115,7 +124,7 @@ class AllowedLoginView(auth.LoginView):
 
 
 def home(request):
-    return redirect("books")
+    return render(request, "home.html")
 
 
 _MESSAGES = {"applied": "Saved.", "same": "Nothing to change."}
@@ -136,6 +145,9 @@ def change_propose(request):
         _flash(request, result)
     except Bad as exc:
         messages.error(request, str(exc))
+    except (DataError, IntegrityError) as exc:
+        log.warning("Database refused %s %s from %s: %s", op_name, action, request.user, exc)
+        messages.error(request, "The database refused that change. Nothing was saved.")
     return redirect(fallback)
 
 
@@ -166,8 +178,9 @@ def authors(request):
 
 
 def author_detail(request, pk):
-    data = _or404(c.author_page(pk), "No such author.")
-    data.update(lookups=c.lookups())
+    sort = request.GET.get("sort", "").strip()
+    data = _or404(c.author_page(pk, sort), "No such author.")
+    data.update(lookups=c.lookups(), sort=sort, sorts=AUTHOR_BOOK_SORTS)
     return render(request, "author.html", data)
 
 
@@ -216,8 +229,33 @@ def entity(request, name, pk=None):
     return render(request, "entity.html", context)
 
 
+def link_search(request):
+    """Suggestions for the find-by-search boxes: the list pages' own searches,
+    capped to a short list; the full paginated search is a click away."""
+    kind = request.GET.get("kind", "")
+    query = request.GET.get("q", "").strip()
+    results, total, list_url = [], 0, ""
+    if query:
+        if kind == "author":
+            rows, total = c.search_authors(query, 1)
+            results = [{"pk": row["pk"], "label": row["author"]} for row in rows]
+            list_url = reverse("authors")
+        elif kind == "subject":
+            rows, total = c.search_subjects(query, 1)
+            results = [{"pk": row["pk"], "label": row["name"]} for row in rows]
+            list_url = reverse("subjects")
+        elif kind == "book":
+            rows, total = c.search_books(query, 1)
+            results = [{"pk": row["pk"], "label": row["title"], "note": row.get("authors", "")} for row in rows]
+            list_url = reverse("books")
+    more = "%s?q=%s" % (list_url, quote_plus(query)) if list_url and total > len(results[:8]) else ""
+    return JsonResponse({"results": results[:8], "total": total, "more": more})
+
+
 home = login_required(home)
 change_propose = login_required(
     require_POST(ratelimit(key="user", rate=settings.RATE_POST, method="POST", block=True)(change_propose))
 )
-books, book_detail, authors, author_detail = map(_cat, (books, book_detail, authors, author_detail))
+books, book_detail, authors, author_detail, entity, link_search = map(
+    _cat, (books, book_detail, authors, author_detail, entity, link_search)
+)

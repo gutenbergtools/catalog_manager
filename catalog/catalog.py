@@ -119,7 +119,7 @@ def lookups():
             m.Attriblist.name,
             lambda a, b: "%s (%s)" % (b, a),
             order=m.Attriblist.pk,
-            where=m.Attriblist.type == "unc",
+            where=(m.Attriblist.type == "unc") & (m.Attriblist.pk != 245),
         )
     return {"roles": roles, "langs": langs, "loccs": loccs, "categories": cats, "attribs": attribs}
 
@@ -166,6 +166,16 @@ def author_row(session, pk):
     }
 
 
+def _name_patterns(query):
+    """Authors are stored 'Last, First'; match natural typing both ways."""
+    words = query.replace(",", " ").split()
+    variants = [query]
+    if len(words) > 1:
+        swapped = [words[-1]] + words[:-1]
+        variants += [", ".join(words), ", ".join(swapped), " ".join(words), " ".join(swapped)]
+    return ["%" + like_pattern(v) + "%" for v in dict.fromkeys(variants)]
+
+
 def search_authors(query, page=1, size=None, sort=""):
     m = _m()
     stmt = select(
@@ -176,14 +186,14 @@ def search_authors(query, page=1, size=None, sort=""):
         m.Author.downloads,
     )
     if query:
-        q = "%" + like_pattern(query) + "%"
+        patterns = _name_patterns(query)
         stmt = (
             stmt.where(m.Author.id == int(query))
             if str(query).isdigit()
             else stmt.where(
                 or_(
-                    m.Author.name.ilike(q, escape="\\"),
-                    exists().where(and_(m.Alias.fk_authors == m.Author.id, m.Alias.alias.ilike(q, escape="\\"))),
+                    *[m.Author.name.ilike(q, escape="\\") for q in patterns],
+                    exists().where(and_(m.Alias.fk_authors == m.Author.id, m.Alias.alias.ilike(patterns[0], escape="\\"))),
                 )
             )
         )
@@ -274,14 +284,15 @@ def author_aliases(session, pk):
 
 
 
-def author_books(session, pk):
+def author_books(session, pk, sort=""):
     m = _m()
+    order = {"title": m.Book.title}.get(sort, m.Book.pk)
     stmt = (
         select(m.Book.pk, m.Book.title, m.BookAuthor.fk_roles, m.BookAuthor.heading, m.Role.role)
         .join(m.BookAuthor, m.BookAuthor.fk_books == m.Book.pk)
         .join(m.Role, m.Role.pk == m.BookAuthor.fk_roles)
         .where(m.BookAuthor.fk_authors == pk)
-        .order_by(m.Book.pk)
+        .order_by(order)
     )
     return _titles(_rows(session, stmt))
 
@@ -303,8 +314,16 @@ def search_entity(model, pk_attr, label_attr, query, page, pk_is_str=False):
     stmt = select(pkcol.label("pk"), label.label("name"))
     if query:
         pattern = "%" + like_pattern(query) + "%"
+        words = query.replace(",", " ").split()
         if pk_is_str:
             stmt = stmt.where(pkcol.ilike(query) | label.ilike(pattern, escape="\\"))
+        elif str(query).isdigit():
+            # a bare number is the item's own number
+            stmt = stmt.where(or_(pkcol == int(query), label.ilike(pattern, escape="\\")))
+        elif len(words) > 1:
+            # vague searches: every word present, in any order
+            every = and_(*[label.ilike("%" + like_pattern(w) + "%", escape="\\") for w in words])
+            stmt = stmt.where(or_(label.ilike(pattern, escape="\\"), every))
         else:
             stmt = stmt.where(label.ilike(pattern, escape="\\"))
     with session() as s:
@@ -380,7 +399,7 @@ def book_page(pk):
         }
 
 
-def author_page(pk):
+def author_page(pk, sort=""):
     with session() as s:
         author = author_row(s, pk)
         if author is None:
@@ -388,7 +407,7 @@ def author_page(pk):
         return {
             "author": author,
             "aliases": author_aliases(s, pk),
-            "books": author_books(s, pk),
+            "books": author_books(s, pk, sort),
             "nbooks": author_book_count(s, pk),
         }
 

@@ -4,7 +4,7 @@ from datetime import date
 
 from django import forms
 from django.utils.dateparse import parse_date
-from sqlalchemy import and_, delete, select, text
+from sqlalchemy import and_, delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 
 from . import catalog as c
@@ -23,6 +23,7 @@ from .clean import (
     cleaned,
     entity_form,
     jsonable,
+    stale,
 )
 
 # Framework
@@ -66,7 +67,8 @@ class Op:
 
     def validate(self, session, action, data, before):
         bound = cleaned(self.form, data, action, keep=self.keep, optional_pk=self.optional_pk)
-        return jsonable(self._val(session, action, bound, before))
+        after = jsonable(self._val(session, action, bound, before))
+        return {key: value for key, value in after.items() if not key.startswith("was_")}
 
     def apply(self, session, action, before, after):
         return self._apply(session, action, before, after)
@@ -91,6 +93,11 @@ def _pick(row, keys):
 def _need(before, kind):
     if not before:
         raise Bad("No such %s." % kind)
+
+
+def _refuse_stale(before, data, keys):
+    if stale(before, data, keys):
+        raise Bad("This record changed after you opened it. Reload, then save again.")
 
 
 def _sql_str(value):
@@ -202,7 +209,7 @@ def add_link(name, table_fn, field, other_name, exists, other_field=None):
     )
 
 
-def add_entity(name, model, pk_name, label_field, form, str_pk=False):
+def add_entity(name, model, pk_name, label_field, form, str_pk=False, in_use=None, in_use_msg=None):
     def snapshot(session, data):
         raw = data.get("pk")
         if raw in (None, ""):
@@ -214,8 +221,11 @@ def add_entity(name, model, pk_name, label_field, form, str_pk=False):
     def validate(session, action, data, before):
         if action == "delete":
             _need(before, name)
+            if in_use and in_use(session, data["pk"]):
+                raise Bad(in_use_msg or "Unlink this %s from every book before deleting." % name)
             return {"pk": data["pk"]}
         exists_state(action, before, name)
+        _refuse_stale(before, data, (label_field,))
         return {"pk": data["pk"], label_field: data.get(label_field) or data.get(name)}
 
     def apply(session, action, before, after):
@@ -237,6 +247,7 @@ def _book_val(session, action, data, before):
     if action == "delete":
         raise Bad("Books cannot be deleted here.")
     exists_state(action, before, "ebook")
+    _refuse_stale(before, data, ("release_date", "title", "copyrighted", "updatemode"))
     data["release_date"] = data.get("release_date") or date.today().isoformat()
     data["copyrighted"] = data.get("copyrighted") or 0
     data["updatemode"] = data.get("updatemode") or 0
@@ -277,7 +288,7 @@ def _book_apply(session, action, before, after):
                     "insert into attributes (fk_books, fk_attriblist, text, nonfiling) "
                     "values (:b, 245, :t, :n)"
                 ),
-                {"b": after["pk"], "t": after.get("title") or "", "n": after.get("nonfiling") or 0},
+                {"b": after["pk"], "t": after.get("title") or "", "n": _article_len(after.get("title"))},
             )
         refresh_book_title(session, after["pk"])
     return row
@@ -323,6 +334,7 @@ def _author_val(session, action, data, before):
             raise Bad("Unlink this author from every book before deleting.")
         return {"pk": data["pk"]}
     exists_state(action, before, "author")
+    _refuse_stale(before, data, ("author", "born_floor", "born_ceil", "died_floor", "died_ceil", "note"))
     return data
 
 
@@ -358,11 +370,19 @@ Op(
     apply=_author_apply,
 )
 
+def _alias_val(session, action, data, before):
+    after = _child_val(session, action, data, before, "alias", "fk_authors", "author", c.exists_author)
+    if action == "delete":
+        return after
+    _refuse_stale(before, data, ("alias", "heading"))
+    return after
+
+
 Op(
     "alias",
     form=AliasForm,
     snapshot=snap_pk(c.alias_row),
-    validate=lambda s, a, d, b: _child_val(s, a, d, b, "alias", "fk_authors", "author", c.exists_author),
+    validate=_alias_val,
     apply=lambda s, a, b, f: apply_row(
         s,
         _m().Alias,
@@ -498,14 +518,52 @@ Op(
 
 # Attributes
 
+# MARC 21 fields that are repeatable (R) in the spec, plus PG's own local
+# tags, which the spec does not govern. Every other tag is nonrepeatable
+# (NR), so a second one is refused on create.
+_REPEATABLE_TAGS = frozenset((
+    20, 41, 43, 246, 247, 250, 260, 264, 300, 362,
+    440, 490, 500, 501, 504, 505, 506, 508, 510, 511, 513,
+    520, 524, 525, 526, 530, 533, 538, 546, 547, 550, 555,
+    561, 563, 580, 583, 586,
+    700, 710, 711, 720, 730, 740, 752,
+    760, 762, 765, 767, 770, 772, 773, 774, 775, 776, 777,
+    780, 785, 786, 787,
+    800, 810, 811, 830, 856,
+    901, 904, 908,
+))
+
+# MARC 21 fields filed under a leading article: their second indicator
+# carries the nonfiling characters. No other field has any.
+_NONFILING_TAGS = frozenset((
+    100, 110, 111, 130, 240, 243, 245, 440, 630,
+    700, 710, 711, 730, 740, 800, 810, 811, 830,
+))
+
+
+def _article_len(title):
+    """Nonfiling seed for a new title: the length of a leading English article."""
+    first, _, rest = (title or "").partition(" ")
+    return len(first) + 1 if first.lower() in ("the", "an", "a") and rest else 0
+
+
 def _attr_val(session, action, data, before):
     after = _child_val(session, action, data, before, "attribute", "fk_books", "ebook", c.exists_book)
     if action == "delete":
+        if (before or {}).get("fk_attriblist") == 245:
+            raise Bad("The title field cannot be deleted. Edit the record title instead.")
         return after
+    _refuse_stale(before, data, ("text", "nonfiling", "indicators", "fk_langs"))
+    if (before or {}).get("fk_attriblist") == 245 and (after.get("text") or "") != ((before or {}).get("text") or ""):
+        raise Bad("The title is edited in the record above.")
     tags = _m().Attriblist
-    where = tags.type == "unc" if action == "create" else None
+    where = (tags.type == "unc") & (tags.pk != 245) if action == "create" else None
     if after["fk_attriblist"] not in _ids(session, tags.pk, where):
         raise Bad("Choose a MARC tag from the list.")
+    if action == "create" and after["fk_attriblist"] not in _REPEATABLE_TAGS:
+        a = _m().Attribute
+        if session.scalar(select(func.count()).where(a.fk_books == after["fk_books"], a.fk_attriblist == after["fk_attriblist"])):
+            raise Bad("That field already has a value for this book. Edit the existing row instead.")
     after["nonfiling"] = after.get("nonfiling") or 0
     if after["nonfiling"] > len(after["text"]):
         raise Bad("Nonfiling characters cannot be longer than the text.")
@@ -551,7 +609,115 @@ Op(
 
 # Entities
 
-add_entity("subject", "Subject", "id", "subject", entity_form("subject"))
-add_entity("category", "Category", "pk", "category", entity_form("category"))
-add_entity("lang", "Lang", "id", "language", LangForm, str_pk=True)
-add_entity("locc", "Locc", "id", "locc", entity_form("locc", str_pk=True, regex=LOCC_RE, case="upper"), str_pk=True)
+
+def _in_use(table_name, fk):
+    """Count link rows still pointing at an entity, for add_entity's delete check."""
+    def in_use(session, pk):
+        table = getattr(_m(), table_name)
+        return session.scalar(select(func.count()).select_from(table).where(getattr(table.c, fk) == pk))
+    return in_use
+
+
+def _lang_in_use(session, pk):
+    """A language is also in use while any MARC attribute still references it."""
+    m = _m()
+    if session.scalar(select(func.count()).select_from(m.t_mn_books_langs).where(m.t_mn_books_langs.c.fk_langs == pk)):
+        return True
+    return session.scalar(select(func.count()).select_from(m.Attribute).where(m.Attribute.fk_langs == pk))
+
+
+add_entity("subject", "Subject", "id", "subject", entity_form("subject"), in_use=_in_use("t_mn_books_subjects", "fk_subjects"))
+add_entity("category", "Category", "pk", "category", entity_form("category"), in_use=_in_use("t_mn_books_categories", "fk_categories"))
+add_entity(
+    "lang",
+    "Lang",
+    "id",
+    "language",
+    LangForm,
+    str_pk=True,
+    in_use=_lang_in_use,
+    in_use_msg="Unlink this language from every book and MARC field before deleting.",
+)
+add_entity(
+    "locc",
+    "Locc",
+    "id",
+    "locc",
+    entity_form("locc", str_pk=True, regex=LOCC_RE, case="upper"),
+    str_pk=True,
+    in_use=_in_use("t_mn_books_loccs", "fk_loccs"),
+)
+
+
+# Fallback changelog SQL: the edit's own statement, in the style of the
+# historical changelog rows. They record what was applied, and are never replayed.
+
+_LINK_SQL = {
+    # op: (table, fk column); real table and column names from the libgutenberg models.
+    "book_subject": ("mn_books_subjects", "fk_subjects"),
+    "book_lang": ("mn_books_langs", "fk_langs"),
+    "book_locc": ("mn_books_loccs", "fk_loccs"),
+    "book_category": ("mn_books_categories", "fk_categories"),
+}
+_ROW_SQL = {
+    # op: (table, value columns, string pk); real table and column names from the libgutenberg models.
+    "author": ("authors", ("author", "born_floor", "born_ceil", "died_floor", "died_ceil", "note"), False),
+    "alias": ("aliases", ("fk_authors", "alias", "alias_heading"), False),
+    "subject": ("subjects", ("subject",), False),
+    "category": ("categories", ("category",), False),
+    "lang": ("langs", ("lang",), True),
+    "locc": ("loccs", ("locc",), True),
+}
+
+
+def _lit(value):
+    return "NULL" if value is None else "'%s'" % _sql_str(value) if isinstance(value, str) else str(value)
+
+
+def _cols(after, cols):
+    return [col for col in cols if col in after]
+
+
+def fallback_sql(op_name, action, before, after):
+    """The edit's own SQL, for ops without compat_sql of their own."""
+    before, after = before or {}, after or {}
+    if op_name == "alias":
+        after = {**after, "alias_heading": after.get("heading")}
+    if op_name == "lang":
+        after = {**after, "lang": after.get("language")}
+    link = _LINK_SQL.get(op_name)
+    if link:
+        table, col = link
+        book, other = after.get("fk_books"), after.get(col)
+        if book is None or other is None:
+            return None
+        if action == "link":
+            return "insert into %s (fk_books, %s) values (%s, %s)" % (table, col, book, _lit(other))
+        return "delete from %s where fk_books = %s and %s = %s" % (table, book, col, _lit(other))
+    if op_name == "attribute":
+        pk = after.get("pk")
+        if pk is None:
+            return None
+        if action == "delete":
+            return "delete from attributes where pk = %s" % pk
+        cols = _cols(after, ("fk_books", "fk_attriblist", "text", "nonfiling", "indicators", "fk_langs"))
+        if not cols:
+            return None
+        if action == "create":
+            return "insert into attributes (%s) values (%s)" % (", ".join(cols), ", ".join(_lit(after[c]) for c in cols))
+        return "update attributes set %s where pk = %s" % (", ".join("%s = %s" % (c, _lit(after[c])) for c in cols), pk)
+    row = _ROW_SQL.get(op_name)
+    if row and action in ("create", "update", "delete") and (after.get("pk") is not None or action == "create"):
+        table, cols, str_pk = row
+        pk = "'%s'" % _sql_str(after.get("pk")) if str_pk else after.get("pk")
+        if action == "delete":
+            return "delete from %s where pk = %s" % (table, pk)
+        names = _cols(after, cols)
+        if not names:
+            return None
+        if action == "update":
+            return "update %s set %s where pk = %s" % (table, ", ".join("%s = %s" % (c, _lit(after[c])) for c in names), pk)
+        if str_pk:  # lang and locc carry their code as the pk
+            names = ["pk"] + names
+        return "insert into %s (%s) values (%s)" % (table, ", ".join(names), ", ".join(_lit(after.get(c)) for c in names))
+    return None

@@ -79,12 +79,18 @@ BookForm = F(
     release_date=forms.DateField(input_formats=["%Y-%m-%d"], required=False),
     copyrighted=FlagField(required=False),
     updatemode=FlagField(required=False),
+    was_title=TextField(max_length=500, required=False),
+    was_release_date=TextField(required=False),
+    was_copyrighted=TextField(required=False),
+    was_updatemode=TextField(required=False),
 )
 AliasForm = F(
     pk=forms.IntegerField(min_value=1, required=False),
     fk_authors=forms.IntegerField(min_value=1),
     alias=TextField(max_length=240),
     heading=FlagField(required=False),
+    was_alias=TextField(max_length=240, required=False),
+    was_heading=TextField(required=False),
 )
 AttrForm = F(
     pk=forms.IntegerField(min_value=1, required=False),
@@ -94,6 +100,10 @@ AttrForm = F(
     nonfiling=forms.IntegerField(min_value=0, max_value=40, required=False),
     indicators=IndicatorsField(),
     fk_langs=CodeField(LANG_RE, required=False),
+    was_text=TextField(max_length=20000, required=False),
+    was_nonfiling=TextField(required=False),
+    was_indicators=TextField(required=False),
+    was_fk_langs=TextField(required=False),
 )
 
 
@@ -105,6 +115,12 @@ class AuthorForm(forms.Form):
     died_floor = forms.IntegerField(min_value=YEAR_MIN, max_value=YEAR_MAX, required=False)
     died_ceil = forms.IntegerField(min_value=YEAR_MIN, max_value=YEAR_MAX, required=False)
     note = TextField(max_length=10000, required=False)
+    was_author = TextField(max_length=240, required=False)
+    was_born_floor = TextField(required=False)
+    was_born_ceil = TextField(required=False)
+    was_died_floor = TextField(required=False)
+    was_died_ceil = TextField(required=False)
+    was_note = TextField(max_length=10000, required=False)
 
     def clean(self):
         data = super().clean()
@@ -152,17 +168,19 @@ def cleaned(form_cls, data, action=None, keep=None, optional_pk=True):
 class LangForm(forms.Form):
     pk = CodeField(LANG_RE)
     lang = TextField(max_length=80)
+    was_lang = TextField(max_length=80, required=False)
 
     def clean(self):
         data = super().clean()
         data["language"] = data.get("lang")
+        data["was_language"] = data.get("was_lang")
         return data
 
 
 def entity_form(label, str_pk=False, regex=None, case="lower"):
     return F(
         pk=CodeField(regex, case=case) if str_pk else forms.IntegerField(min_value=1),
-        **{label: TextField(max_length=240)},
+        **{label: TextField(max_length=240), "was_" + label: TextField(max_length=240, required=False)},
     )
 
 
@@ -180,3 +198,23 @@ def jsonable(value):
     if isinstance(value, (list, tuple)):
         return [jsonable(item) for item in value]
     return value
+
+
+def _plain(value):
+    """A row or posted value as comparable text: dates via jsonable, no blank forms."""
+    value = jsonable(value)
+    text = "" if value is None else str(value)
+    return text.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def stale(before, was, keys):
+    """True when any recorded original value no longer matches the row.
+
+    Only non-empty was_* posted values take part, so forms that do not post
+    the hidden fields (create forms, old clients) are never refused.
+    """
+    for key in keys:
+        new = _plain((was or {}).get("was_" + key))
+        if new and new != _plain((before or {}).get(key)):
+            return True
+    return False

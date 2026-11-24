@@ -35,7 +35,9 @@ def commit(user, op_name, action, post):
         if action == "update" and before is not None and jsonable(before) == jsonable(after):
             return "same", None
         after = op.apply(session, action, before, dict(after))
-        _compat(session, who, op.compat_sql(action, before, after))
+        # Changelog rows record the applied statement; they are a history, never replayed.
+        sql = op.compat_sql(action, before, after) or registry.fallback_sql(op_name, action, before, after)
+        _compat(session, who, sql)
         session.commit()
     log.info("Applied %s %s as %s.", action, op_name, who)
     return "applied", after

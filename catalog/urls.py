@@ -8,7 +8,8 @@ from django_ratelimit.decorators import ratelimit
 from . import views
 
 throttle_login = ratelimit(key="ip", rate=settings.RATE_LOGIN, method="POST", block=True)
-admin.site.login = throttle_login(admin.site.login)
+throttle_user = ratelimit(key="post:username", rate=settings.RATE_LOGIN_USER, method="POST", block=True)
+admin.site.login = throttle_login(throttle_user(admin.site.login))
 urlpatterns = [
     path("", views.home, name="home"),
     path("books/", views.books, name="books"),
@@ -28,8 +29,9 @@ urlpatterns = [
         auth.PasswordChangeDoneView.as_view(template_name="registration/password_done.html"),
         name="password_done",
     ),
-    path("login/", throttle_login(views.AllowedLoginView.as_view()), name="login"),
+    path("login/", throttle_login(throttle_user(views.AllowedLoginView.as_view())), name="login"),
     path("logout/", auth.LogoutView.as_view(), name="logout"),
+    path("link-search/", views.link_search, name="link_search"),
     path("robots.txt", lambda request: HttpResponse("User-agent: *\nDisallow: /\n", content_type="text/plain")),
     path("%s/" % settings.ADMIN_URL, admin.site.urls),
 ]
