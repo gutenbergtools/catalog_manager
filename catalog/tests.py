@@ -324,17 +324,12 @@ class InviteTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("Password-set email sent", response.content.decode())
 
-    def test_forgot_password_flow(self):
-        get_user_model().objects.create_user("forgot", email="forgot@example.org", password="long-password-1")
-        response = self.client.post(reverse("password_reset"), {"email": "forgot@example.org"})
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(len(mail.outbox), 1)
-        page = self.client.get(self._link_from(mail.outbox[0]), follow=True)
-        self.client.post(
-            page.request["PATH_INFO"], {"new_password1": "new-long-pass-1", "new_password2": "new-long-pass-1"}
-        )
-        self.assertTrue(self.client.login(username="forgot", password="new-long-pass-1"))
-        self.assertFalse(self.client.login(username="forgot", password="long-password-1"))
+    def test_no_public_password_request(self):
+        response = self.client.get("/password-reset/")
+        self.assertEqual(response.status_code, 404)
+        response = self.client.get(reverse("password_reset_confirm", kwargs={"uidb64": "x", "token": "y"}))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Ask an administrator", response.content.decode())
 
 
 class LoginUserRateTests(TestCase):

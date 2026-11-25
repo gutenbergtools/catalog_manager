@@ -9,7 +9,6 @@ from . import views
 
 throttle_login = ratelimit(key="ip", rate=settings.RATE_LOGIN, method="POST", block=True)
 throttle_user = ratelimit(key="post:username", rate=settings.RATE_LOGIN_USER, method="POST", block=True)
-throttle_reset = ratelimit(key="ip", rate=settings.RATE_LOGIN, method="POST", block=True)
 admin.site.login = throttle_login(throttle_user(admin.site.login))
 urlpatterns = [
     path("", views.home, name="home"),
@@ -32,12 +31,6 @@ urlpatterns = [
     ),
     path("login/", throttle_login(throttle_user(views.AllowedLoginView.as_view())), name="login"),
     path("logout/", auth.LogoutView.as_view(), name="logout"),
-    path("password-reset/", throttle_reset(auth.PasswordResetView.as_view()), name="password_reset"),
-    path(
-        "password-reset/done/",
-        auth.PasswordResetDoneView.as_view(template_name="registration/password_reset_done.html"),
-        name="password_reset_done",
-    ),
     path(
         "password-reset/<uidb64>/<token>/",
         auth.PasswordResetConfirmView.as_view(template_name="registration/password_reset_confirm.html"),
