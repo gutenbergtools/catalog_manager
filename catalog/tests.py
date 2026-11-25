@@ -6,6 +6,7 @@ from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -323,6 +324,18 @@ class InviteTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("Password-set email sent", response.content.decode())
+
+    def test_link_expires_after_the_configured_hours(self):
+        from datetime import datetime as _dt
+
+        user = get_user_model().objects.create_user("expiring", email="e@example.org", password="long-password-1")
+        fresh = default_token_generator.make_token(user)
+        self.assertTrue(default_token_generator.check_token(user, fresh))
+        # a token minted just past the window must be refused
+        seconds_since_2001 = int((_dt.now() - _dt(2001, 1, 1)).total_seconds())
+        stale_ts = seconds_since_2001 - settings.PASSWORD_RESET_TIMEOUT - 60
+        stale = default_token_generator._make_token_with_timestamp(user, stale_ts, default_token_generator.secret)
+        self.assertFalse(default_token_generator.check_token(user, stale))
 
     def test_no_public_password_request(self):
         response = self.client.get("/password-reset/")

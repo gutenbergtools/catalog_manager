@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.sites.shortcuts import get_current_site
 from django.core import mail
@@ -15,6 +16,7 @@ def _context(request, user):
         "protocol": "https" if request.is_secure() else "http",
         "uid": urlsafe_base64_encode(str(user.pk).encode()),
         "token": default_token_generator.make_token(user),
+        "hours": max(1, round(settings.PASSWORD_RESET_TIMEOUT / 3600)),
     }
 
 
@@ -37,7 +39,7 @@ def send_invite(request, user):
     body = render_to_string("registration/password_reset_email.html", _context(request, user))
     return bool(
         mail.send_mail(
-            "Set your Catalog Manager password",
+            "Catalog Manager password reset",
             body,
             None,  # DEFAULT_FROM_EMAIL
             [user.email],

@@ -114,6 +114,9 @@ LOGGING = {
     },
     "root": {"handlers": ["console", "file"], "level": env("DJANGO_LOG_LEVEL", "INFO")},
 }
+# Password-set links live for this many seconds; two hours, not Django's
+# three-day default, because resending from the user admin is one click.
+PASSWORD_RESET_TIMEOUT = int(env("DJANGO_RESET_TIMEOUT", "7200"))
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = env("DJANGO_TIME_ZONE", "America/New_York")
 USE_I18N = True
