@@ -140,7 +140,10 @@ CSRF_COOKIE_SAMESITE = "Lax"
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
+# Behind the proxy, links and emails must carry the public host, not the
+# local socket Django listens on.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
 secure = env("DJANGO_SECURE_COOKIES", "0" if DEBUG else "1") == "1"
 if secure:
     SESSION_COOKIE_SECURE = True

@@ -9,7 +9,7 @@ from django.contrib.auth.models import Group
 from django.core import mail
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from . import catalog as c
@@ -330,6 +330,15 @@ class InviteTests(TestCase):
         response = self.client.get(reverse("password_reset_confirm", kwargs={"uidb64": "x", "token": "y"}))
         self.assertEqual(response.status_code, 200)
         self.assertIn("Ask an administrator", response.content.decode())
+
+
+class ForwardedHostTests(SimpleTestCase):
+    def test_links_use_the_public_host_behind_the_proxy(self):
+        with override_settings(USE_X_FORWARDED_HOST=True, ALLOWED_HOSTS=["opds-test.pglaf.org"]):
+            bad = self.client.get("/login/", HTTP_X_FORWARDED_HOST="bad.example.org")
+            response = self.client.get("/login/", HTTP_X_FORWARDED_HOST="opds-test.pglaf.org")
+        self.assertEqual(bad.status_code, 400)  # forwarded hosts are still validated
+        self.assertEqual(response.status_code, 200)
 
 
 class LoginUserRateTests(TestCase):
