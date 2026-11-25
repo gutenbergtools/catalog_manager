@@ -1,12 +1,16 @@
+import re
 from datetime import date
 from unittest import mock
 
 from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.core import mail
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
 
 from . import catalog as c
 from .clean import YEAR_MAX, Bad, BookForm, CodeField, FlagField, TextField, cleaned, stale
@@ -273,6 +277,64 @@ class BookStaleTests(SimpleTestCase):
         data = cleaned(BookForm, self.post(nonfiling="40"), action="update")
         with self.assertRaisesMessage(Bad, "cannot be longer than the title"):
             _book_val(None, "update", data, self.BEFORE)
+
+
+class InviteTests(TestCase):
+    """Accounts are created without a password; the user picks their own
+    behind an emailed one-time link, so nothing travels in plain text."""
+
+    def _admin_client(self):
+        staff = get_user_model().objects.create_superuser("boss", "boss@example.org", "long-password-1")
+        self.client.force_login(staff)
+
+    @staticmethod
+    def _link_from(message):
+        return re.search(r"http://testserver(/\S+)", message.body).group(1)
+
+    def test_admin_create_user_emails_a_password_link(self):
+        group = Group.objects.get(name=settings.CATALOGUER_GROUP)
+        self._admin_client()
+        response = self.client.post(
+            reverse("admin:auth_user_add"),
+            {"username": "new", "email": "new@example.org", "groups": [group.pk]},
+        )
+        self.assertEqual(response.status_code, 302)
+        user = get_user_model().objects.get(username="new")
+        self.assertFalse(user.has_usable_password())
+        self.assertIn(group, user.groups.all())
+        self.assertEqual(len(mail.outbox), 1)
+
+        self.client.logout()
+        page = self.client.get(self._link_from(mail.outbox[0]), follow=True)
+        self.assertEqual(page.status_code, 200)
+        self.client.post(
+            page.request["PATH_INFO"], {"new_password1": "long-password-1", "new_password2": "long-password-1"}
+        )
+        self.assertTrue(self.client.login(username="new", password="long-password-1"))
+
+    def test_admin_action_resends_the_link(self):
+        get_user_model().objects.create_user("some", email="some@example.org")
+        self._admin_client()
+        response = self.client.post(
+            reverse("admin:auth_user_changelist"),
+            {"action": "send_invite_action", "_selected_action": [get_user_model().objects.get(username="some").pk]},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Password-set email sent", response.content.decode())
+
+    def test_forgot_password_flow(self):
+        get_user_model().objects.create_user("forgot", email="forgot@example.org", password="long-password-1")
+        response = self.client.post(reverse("password_reset"), {"email": "forgot@example.org"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
+        page = self.client.get(self._link_from(mail.outbox[0]), follow=True)
+        self.client.post(
+            page.request["PATH_INFO"], {"new_password1": "new-long-pass-1", "new_password2": "new-long-pass-1"}
+        )
+        self.assertTrue(self.client.login(username="forgot", password="new-long-pass-1"))
+        self.assertFalse(self.client.login(username="forgot", password="long-password-1"))
 
 
 class LoginUserRateTests(TestCase):
