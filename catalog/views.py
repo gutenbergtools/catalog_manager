@@ -116,11 +116,12 @@ def _listing(request, fetch, template, key, extra=None, sorts=None):
 
 class AllowedLoginView(auth.LoginView):
     template_name = "registration/login.html"
-    form_valid = lambda self, form: (
-        auth.LoginView.form_valid(self, form)
-        if can_use_app(form.get_user())
-        else (form.add_error(None, "This account cannot use this site."), self.form_invalid(form))[1]
-    )
+
+    def form_valid(self, form):
+        if not can_use_app(form.get_user()):
+            form.add_error(None, "This account cannot use this site.")
+            return self.form_invalid(form)
+        return super().form_valid(form)
 
 
 def home(request):

@@ -15,8 +15,14 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from . import catalog as c
+from .changelog import (
+    attribute_changelog,
+    book_author_changelog,
+    book_changelog,
+    default_changelog_sql,
+)
 from .clean import YEAR_MAX, Bad, BookForm, CodeField, FlagField, TextField, cleaned, stale
-from .ops import _book_snap, _book_val, fallback_sql
+from .ops.books import _book_snap, _book_val
 
 
 class _Num(forms.Form):
@@ -126,25 +132,66 @@ class AccessControlTests(TestCase):
         self.cataloger("member", password="long-password-1")
         response = self.client.post("/login/", {"username": "member", "password": "long-password-1"})
         self.assertEqual(response.status_code, 302)
-class FallbackSqlTests(SimpleTestCase):
+
+
+class ChangelogSqlTests(SimpleTestCase):
+    def test_book(self):
+        after = {"pk": 1, "release_date": "2026-01-01", "title": "It's", "copyrighted": 0, "updatemode": 0}
+        self.assertEqual(
+            book_changelog("create", None, after),
+            "insert into books (pk, release_date, title, copyrighted, updatemode)"
+            " values (1, '2026-01-01', 'It''s', 0, 0)",
+        )
+        self.assertEqual(
+            book_changelog("update", None, after),
+            "update books set release_date = '2026-01-01', title = 'It''s',"
+            " copyrighted = 0, updatemode = 0 where pk = 1",
+        )
+        self.assertIsNone(book_changelog("delete", None, after))
+
+    def test_book_author(self):
+        after = {"fk_books": 1, "fk_authors": 2, "fk_roles": "cr", "heading": 1}
+        self.assertEqual(
+            book_author_changelog("link", None, after),
+            "insert into mn_books_authors (fk_books, fk_authors, fk_roles, heading)"
+            " values (1, 2, 'cr', 1)",
+        )
+        self.assertEqual(
+            book_author_changelog("update", None, {**after, "fk_roles": "ed", "heading": 0}),
+            "update mn_books_authors set fk_roles = 'ed', heading = 0"
+            " where fk_books = 1 and fk_authors = 2",
+        )
+        self.assertEqual(
+            book_author_changelog("unlink", None, after),
+            "delete from mn_books_authors where fk_books = 1 and fk_authors = 2 and fk_roles = 'cr'",
+        )
+
+    def test_attribute_245(self):
+        self.assertEqual(
+            attribute_changelog("update", None, {"pk": 99, "fk_attriblist": 245}),
+            'update attributes set  "fk_attriblist" = 245 where pk = 99',
+        )
+        self.assertIsNone(attribute_changelog("update", None, {"pk": 99, "fk_attriblist": 700}))
+        self.assertIsNone(attribute_changelog("delete", None, {"pk": 99, "fk_attriblist": 245}))
+
     def test_links(self):
         self.assertEqual(
-            fallback_sql("book_subject", "link", None, {"fk_books": 12, "fk_subjects": 3}),
+            default_changelog_sql("book_subject", "link", None, {"fk_books": 12, "fk_subjects": 3}),
             "insert into mn_books_subjects (fk_books, fk_subjects) values (12, 3)",
         )
         self.assertEqual(
-            fallback_sql("book_lang", "unlink", {"fk_books": 12}, {"fk_books": 12, "fk_langs": "en"}),
+            default_changelog_sql("book_lang", "unlink", {"fk_books": 12}, {"fk_books": 12, "fk_langs": "en"}),
             "delete from mn_books_langs where fk_books = 12 and fk_langs = 'en'",
         )
-        self.assertIsNone(fallback_sql("book_locc", "link", None, {"fk_loccs": "PR"}))
+        self.assertIsNone(default_changelog_sql("book_locc", "link", None, {"fk_loccs": "PR"}))
 
     def test_attribute(self):
         self.assertEqual(
-            fallback_sql("attribute", "update", {"pk": 99, "fk_attriblist": 245}, {"pk": 99, "fk_attriblist": 245}),
+            default_changelog_sql("attribute", "update", {"pk": 99, "fk_attriblist": 245}, {"pk": 99, "fk_attriblist": 245}),
             "update attributes set fk_attriblist = 245 where pk = 99",
         )
         self.assertEqual(
-            fallback_sql(
+            default_changelog_sql(
                 "attribute",
                 "create",
                 None,
@@ -154,63 +201,65 @@ class FallbackSqlTests(SimpleTestCase):
             " values (5, 700, 'A note', 0, '', NULL)",
         )
         self.assertEqual(
-            fallback_sql("attribute", "delete", {"pk": 5, "fk_attriblist": 700}, {"pk": 5, "fk_books": 5}),
+            default_changelog_sql("attribute", "delete", {"pk": 5, "fk_attriblist": 700}, {"pk": 5, "fk_books": 5}),
             "delete from attributes where pk = 5",
         )
 
     def test_author_and_alias(self):
         self.assertEqual(
-            fallback_sql("author", "update", {"pk": 3}, {"pk": 3, "author": "Brontë", "note": None}),
+            default_changelog_sql("author", "update", {"pk": 3}, {"pk": 3, "author": "Brontë", "note": None}),
             "update authors set author = 'Brontë', note = NULL where pk = 3",
         )
         self.assertEqual(
-            fallback_sql("author", "create", None, {"author": "Brontë", "born_floor": 1816}),
+            default_changelog_sql("author", "create", None, {"author": "Brontë", "born_floor": 1816}),
             "insert into authors (author, born_floor) values ('Brontë', 1816)",
         )
         self.assertEqual(
-            fallback_sql("alias", "create", None, {"fk_authors": 3, "alias": "Bell, Ellis", "heading": 1}),
+            default_changelog_sql("alias", "create", None, {"fk_authors": 3, "alias": "Bell, Ellis", "heading": 1}),
             "insert into aliases (fk_authors, alias, alias_heading) values (3, 'Bell, Ellis', 1)",
         )
         self.assertEqual(
-            fallback_sql("alias", "update", {"pk": 8}, {"pk": 8, "alias": "Bell, Ellis", "heading": 1}),
+            default_changelog_sql("alias", "update", {"pk": 8}, {"pk": 8, "alias": "Bell, Ellis", "heading": 1}),
             "update aliases set alias = 'Bell, Ellis', alias_heading = 1 where pk = 8",
         )
         self.assertEqual(
-            fallback_sql("alias", "delete", {"pk": 8}, {"pk": 8, "fk_authors": 3}),
+            default_changelog_sql("alias", "delete", {"pk": 8}, {"pk": 8, "fk_authors": 3}),
             "delete from aliases where pk = 8",
         )
 
     def test_entities(self):
         self.assertEqual(
-            fallback_sql("subject", "update", {"pk": 3}, {"pk": 3, "subject": "Fiction"}),
+            default_changelog_sql("subject", "update", {"pk": 3}, {"pk": 3, "subject": "Fiction"}),
             "update subjects set subject = 'Fiction' where pk = 3",
         )
         self.assertEqual(
-            fallback_sql("subject", "create", None, {"subject": "Fiction"}),
+            default_changelog_sql("subject", "create", None, {"subject": "Fiction"}),
             "insert into subjects (subject) values ('Fiction')",
         )
         self.assertEqual(
-            fallback_sql("category", "delete", {"pk": 1}, {"pk": 1}),
+            default_changelog_sql("category", "delete", {"pk": 1}, {"pk": 1}),
             "delete from categories where pk = 1",
         )
         self.assertEqual(
-            fallback_sql("lang", "update", {"pk": "en"}, {"pk": "en", "language": "English"}),
+            default_changelog_sql("lang", "update", {"pk": "en"}, {"pk": "en", "language": "English"}),
             "update langs set lang = 'English' where pk = 'en'",
         )
         self.assertEqual(
-            fallback_sql("lang", "create", None, {"pk": "fr", "language": "French"}),
+            default_changelog_sql("lang", "create", None, {"pk": "fr", "language": "French"}),
             "insert into langs (pk, lang) values ('fr', 'French')",
         )
         self.assertEqual(
-            fallback_sql("locc", "delete", {"pk": "PR"}, {"pk": "PR"}),
+            default_changelog_sql("locc", "delete", {"pk": "PR"}, {"pk": "PR"}),
             "delete from loccs where pk = 'PR'",
         )
 
     def test_ops_with_their_own_or_no_sql(self):
-        self.assertIsNone(fallback_sql("book", "create", None, {"pk": 1}))
-        self.assertIsNone(fallback_sql("book", "delete", {"pk": 1}, {"pk": 1}))
-        self.assertIsNone(fallback_sql("book_author", "link", None, {"fk_books": 1, "fk_authors": 2}))
-        self.assertIsNone(fallback_sql("nonesuch", "update", {}, {}))
+        self.assertIsNone(default_changelog_sql("book", "create", None, {"pk": 1}))
+        self.assertIsNone(default_changelog_sql("book", "delete", {"pk": 1}, {"pk": 1}))
+        self.assertIsNone(default_changelog_sql("book_author", "link", None, {"fk_books": 1, "fk_authors": 2}))
+        self.assertIsNone(default_changelog_sql("nonesuch", "update", {}, {}))
+
+
 class StaleTests(SimpleTestCase):
     def test_no_was_value_no_check(self):
         self.assertFalse(stale({"title": "New"}, {}, ("title",)))
@@ -245,7 +294,7 @@ class BookSnapshotTests(SimpleTestCase):
         row = {"pk": 11, "release_date": "2026-01-01", "title": "The Idiot", "copyrighted": 0, "updatemode": 0}
         with (
             mock.patch.object(c, "book_row", lambda s, pk: dict(row, pk=pk)),
-            mock.patch("catalog.ops._m", lambda: model),
+            mock.patch("catalog.ops.books._m", lambda: model),
         ):
             snap = _book_snap(session, {"pk": "11"})
         self.assertEqual(snap["pk"], 11)
