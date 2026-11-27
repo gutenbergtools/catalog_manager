@@ -1,3 +1,4 @@
+import contextlib
 import re
 from datetime import date
 from unittest import mock
@@ -77,14 +78,21 @@ PRIVATE_PAGES = [
 
 
 class AccessControlTests(TestCase):
+    fixtures = ["cataloger"]
+
     @staticmethod
     def cataloger(username="cataloger", password=None):
         from django.contrib.auth.models import Group
 
-        kwargs = {"email": username + "@example.com"}
-        if password:
-            kwargs["password"] = password
-        user = get_user_model().objects.create_user(username, **kwargs)
+        user = get_user_model().objects.filter(username=username).first()
+        if user is None:
+            kwargs = {"email": username + "@example.com"}
+            if password:
+                kwargs["password"] = password
+            user = get_user_model().objects.create_user(username, **kwargs)
+        elif password:
+            user.set_password(password)
+            user.save(update_fields=["password"])
         user.groups.add(Group.objects.get(name=settings.CATALOGUER_GROUP))
         return user
 
@@ -103,7 +111,10 @@ class AccessControlTests(TestCase):
 
     def test_cataloger_can_propose_changes(self):
         self.client.force_login(self.cataloger())
-        response = self.client.post("/change/propose/", {"op": "book", "action": "create"})
+        # The posted book has no data, so validation stops before any catalog
+        # query; the stub keeps the test independent of the catalog database.
+        with mock.patch("catalog.changes.c.session", return_value=contextlib.nullcontext()):
+            response = self.client.post("/change/propose/", {"op": "book", "action": "create"})
         self.assertEqual(response.status_code, 302)  # invalid data: redirected with a flash, not 403
 
     def test_login_refused_without_group(self):
