@@ -5,7 +5,7 @@
 <details class="add-toggle">
 <summary>Add author</summary>
 <form method="post" action="{% url 'change_propose' %}">
-{% include "_post.html" with op="author" action="create" next="/authors/" %}
+{% url 'authors' as authors_url %}{% include "_post.html" with op="author" action="create" next=authors_url %}
 <table class="dialog">
 <tbody>
 {% include "_author_fields.html" %}

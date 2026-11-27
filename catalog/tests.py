@@ -12,9 +12,10 @@ from django.core import mail
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase, override_settings
-from django.urls import reverse
+from django.urls import clear_script_prefix, reverse, set_script_prefix
 
 from . import catalog as c
+from . import views
 from .changelog import (
     attribute_changelog,
     book_author_changelog,
@@ -132,6 +133,38 @@ class AccessControlTests(TestCase):
         self.cataloger("member", password="long-password-1")
         response = self.client.post("/login/", {"username": "member", "password": "long-password-1"})
         self.assertEqual(response.status_code, 302)
+
+
+class MountPrefixTests(TestCase):
+    """Behind the proxy the app is mounted under a prefix (/catalog/ on the
+    test instance); links and post-save redirects must keep it."""
+
+    fixtures = ["cataloger"]
+
+    def setUp(self):
+        # The test client does not apply SCRIPT_NAME to reverse(); only the
+        # real WSGI handler calls set_script_prefix(), so set it here.
+        set_script_prefix("/catalog/")
+        self.addCleanup(clear_script_prefix)
+        self.client.force_login(AccessControlTests.cataloger())
+
+    def test_entity_pages_keep_the_prefix(self):
+        with mock.patch("catalog.views.c.simple_entity", return_value={"pk": 7, "name": "Test subject"}):
+            detail = self.client.get("/subject/7/").content.decode()
+        # The nav bar already links /catalog/subjects/, so match the specific links.
+        self.assertIn('<p class="gotonav"><a href="/catalog/subjects/">', detail)  # "All subjects"
+        self.assertIn('name="next" value="/catalog/subjects/"', detail)  # after delete
+        self.assertNotIn('"/subjects/"', detail)
+        with mock.patch.dict(views._ENTITY["subject"], {"search": lambda q, p: ([], 0)}):
+            listing = self.client.get("/subjects/", {"q": "x"}).content.decode()
+        self.assertIn('<a class="clear" href="/catalog/subjects/">', listing)  # search "Clear"
+        self.assertNotIn('"/subjects/"', listing)
+
+    def test_author_create_keeps_the_prefix(self):
+        with mock.patch("catalog.views.c.search_authors", return_value=([], 0)):
+            page = self.client.get("/authors/").content.decode()
+        self.assertIn('name="next" value="/catalog/authors/"', page)
+        self.assertNotIn('value="/authors/"', page)
 
 
 class ChangelogSqlTests(SimpleTestCase):

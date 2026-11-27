@@ -218,7 +218,8 @@ def entity(request, name, pk=None):
     context = {
         "title": meta["title"], "op": name, "kind": meta["kind"],
         "fields": meta["fields"], "list_url": meta["list"], "detail": meta["detail"],
-        "list_path": meta["path"], "str_pk": meta.get("str_pk", False),
+        # reverse(), not meta["path"], so links keep the mount prefix (/catalog/).
+        "list_path": reverse(meta["list"]), "str_pk": meta.get("str_pk", False),
     }
     if pk is None:
         return _listing(request, lambda q, p, sort: meta["search"](q, p), "entities.html", "rows", context)

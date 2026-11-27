@@ -22,7 +22,7 @@
 </tbody>
 </table>
 </form>
-{% if nbooks == 0 %}{% include "_delete.html" with op="author" pk=author.pk next="/authors/" %}{% endif %}
+{% url 'authors' as authors_url %}{% if nbooks == 0 %}{% include "_delete.html" with op="author" pk=author.pk next=authors_url %}{% endif %}
 <details class="section" open>
 <summary>Books <span class="n">({{ nbooks }})</span></summary>
 <div class="toolbar">
