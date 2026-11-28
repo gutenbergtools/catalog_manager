@@ -22,7 +22,8 @@ from .changelog import (
     book_changelog,
     default_changelog_sql,
 )
-from .clean import YEAR_MAX, Bad, BookForm, CodeField, FlagField, TextField, cleaned, stale
+from .clean import YEAR_MAX, Bad, BookForm, CodeField, FlagField, Posted, TextField, cleaned, stale
+from .ops import get
 from .ops.books import _book_snap, _book_val
 
 
@@ -315,6 +316,13 @@ class StaleTests(SimpleTestCase):
         self.assertFalse(stale({"indicators": "  "}, {"was_indicators": ""}, ("indicators",)))
         self.assertFalse(stale({"fk_langs": None}, {"was_fk_langs": ""}, ("fk_langs",)))
 
+    def test_posted_empty_original_is_checked(self):
+        posted = Posted({"was_note": ""}, {"was_note"})
+        self.assertTrue(stale({"note": "Filled in meanwhile"}, posted, ("note",)))
+        self.assertFalse(stale({"note": None}, posted, ("note",)))
+        # a client that omits the hidden field is never refused
+        self.assertFalse(stale({"note": "Filled in meanwhile"}, Posted({"was_note": ""}, set()), ("note",)))
+
 
 class BookSnapshotTests(SimpleTestCase):
     def test_snapshot_takes_the_posted_form_data(self):
@@ -371,6 +379,38 @@ class BookStaleTests(SimpleTestCase):
         data = cleaned(BookForm, self.post(nonfiling="40"), action="update")
         with self.assertRaisesMessage(Bad, "cannot be longer than the title"):
             _book_val(None, "update", data, self.BEFORE)
+
+
+class AuthorStaleTests(SimpleTestCase):
+    """An original that was empty is still protected against a first write."""
+
+    BEFORE = {
+        "pk": 5, "author": "Name", "born_floor": None, "born_ceil": None,
+        "died_floor": None, "died_ceil": None, "note": "filled in meanwhile",
+    }
+
+    @staticmethod
+    def post(**extra):
+        data = {"pk": "5", "author": "Name", "note": "mine"}
+        data.update(extra)
+        return data
+
+    def test_empty_original_refuses_a_later_first_write(self):
+        op = get("author")
+        data = op.parse(self.post(was_author="Name", was_note=""))
+        with self.assertRaisesMessage(Bad, "changed after you opened it"):
+            op.validate(None, "update", data, self.BEFORE)
+
+    def test_matching_empty_original_passes(self):
+        op = get("author")
+        before = dict(self.BEFORE, note=None)
+        after = op.validate(None, "update", op.parse(self.post(was_author="Name", was_note="")), before)
+        self.assertEqual(after["note"], "mine")
+
+    def test_absent_was_field_still_passes(self):
+        op = get("author")
+        after = op.validate(None, "update", op.parse(self.post(was_author="Name")), self.BEFORE)
+        self.assertEqual(after["note"], "mine")
 
 
 class InviteTests(TestCase):

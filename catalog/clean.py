@@ -152,6 +152,19 @@ class BAForm(forms.Form):
         return self.cleaned_data.get("fk_roles") or "cr"
 
 
+class Posted(dict):
+    """Parsed form data that remembers which ``was_*`` fields the client sent.
+
+    The hidden fields are posted even when the original value was empty, so
+    presence tells "the form showed this as empty" apart from an older client
+    that does not send the field at all.
+    """
+
+    def __init__(self, data, posted=()):
+        super().__init__(data)
+        self.posted = frozenset(posted)
+
+
 def cleaned(form_cls, data, action=None, keep=None, optional_pk=True):
     form = form_cls(data)
     if action == "delete":
@@ -164,6 +177,8 @@ def cleaned(form_cls, data, action=None, keep=None, optional_pk=True):
         form.fields["pk"].required = True
     if not form.is_valid():
         raise Bad(next(err for errs in form.errors.values() for err in errs))
+    if isinstance(data, Posted):
+        return Posted(form.cleaned_data, data.posted)
     return form.cleaned_data
 
 
@@ -212,11 +227,18 @@ def _plain(value):
 def stale(before, was, keys):
     """True when any recorded original value no longer matches the row.
 
-    Only non-empty was_* posted values take part, so forms that do not post
-    the hidden fields (create forms, old clients) are never refused.
+    A ``was_*`` value the client actually posted is compared even when it is
+    empty, so a field that was blank when the form opened still catches a
+    first write by someone else. Older clients that omit the hidden fields,
+    and plain data dicts from callers that never parsed a form, are not
+    refused.
     """
+    posted = getattr(was, "posted", None)
     for key in keys:
-        new = _plain((was or {}).get("was_" + key))
-        if new and new != _plain((before or {}).get(key)):
+        name = "was_" + key
+        new = _plain((was or {}).get(name))
+        if posted is not None and name not in posted:
+            continue
+        if (posted is not None or new) and new != _plain((before or {}).get(key)):
             return True
     return False

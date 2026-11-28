@@ -5,7 +5,7 @@ from sqlalchemy import and_, delete, select, text
 from sqlalchemy.dialects.postgresql import insert
 
 from .. import catalog as c
-from ..clean import Bad, F, cleaned, jsonable, stale
+from ..clean import Bad, F, Posted, cleaned, jsonable, stale
 
 
 # Framework
@@ -44,7 +44,10 @@ class Op:
         OPS[name] = self
 
     def parse(self, post):
-        return dict((f, post.get(f, "")) for f in self.fields)
+        return Posted(
+            ((field, post.get(field, "")) for field in self.fields),
+            (field for field in self.fields if field.startswith("was_") and field in post),
+        )
 
     def snapshot(self, session, data):
         return self._snap(session, data) if self._snap else None
