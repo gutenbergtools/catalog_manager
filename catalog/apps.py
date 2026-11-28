@@ -3,7 +3,7 @@ import logging
 from django.apps import AppConfig
 from django.conf import settings
 from django.db.backends.signals import connection_created
-from django.db.models.signals import post_migrate
+from django.db.models.signals import post_migrate, post_save
 from django.dispatch import receiver
 
 log = logging.getLogger(__name__)
@@ -53,7 +53,22 @@ def ensure_schema(sender, connection, **kwargs):
 
 @receiver(post_migrate)
 def ensure_groups(sender, **kwargs):
-    """The cataloguer group gates the whole site; make sure it exists."""
+    """The cataloguer group gates the whole site; make sure it exists and
+    that existing administrators are members, so migrate repairs a fresh or
+    upgraded deployment."""
+    from django.contrib.auth import get_user_model
     from django.contrib.auth.models import Group
 
-    Group.objects.get_or_create(name=settings.CATALOGUER_GROUP)
+    group, _ = Group.objects.get_or_create(name=settings.CATALOGUER_GROUP)
+    group.user_set.add(*get_user_model().objects.filter(is_superuser=True))
+
+
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+def add_superuser_to_group(sender, instance, **kwargs):
+    """Every administrator may use the site: createsuperuser and the admin
+    user form both land in the cataloguer group, so nobody has to remember
+    the extra step."""
+    from django.contrib.auth.models import Group
+
+    if instance.is_superuser:
+        Group.objects.get_or_create(name=settings.CATALOGUER_GROUP)[0].user_set.add(instance)

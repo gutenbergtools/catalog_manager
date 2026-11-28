@@ -45,7 +45,7 @@ set -a; . ./.env; set +a                    # load it for the commands below
 DJANGO_DEBUG=1 .venv/bin/python manage.py runserver 127.0.0.1:8000
 ```
 
-`migrate` creates Django's tables and the `cataloguer` gate group. Add each cataloger to that group through the Django admin; new accounts are created without a password and receive a one-time emailed link to choose their own. An admin action re-sends the link later. If email is not configured, the admin gets the link to pass along by hand.
+`migrate` creates Django's tables and the `cataloguer` gate group, and adds existing superusers to it. Every new superuser joins the group on save, so `createsuperuser` needs no extra step. Add each other cataloger to that group through the Django admin; new accounts are created without a password and receive a one-time emailed link to choose their own. An admin action re-sends the link later. If email is not configured, the admin gets the link to pass along by hand.
 
 Django creates the auth schema automatically on first connect when the database role has `CREATE` rights. If it does not, create it once with a privileged account and migrate again:
 

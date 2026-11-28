@@ -136,6 +136,18 @@ class AccessControlTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
 
+class SuperuserGroupTests(TestCase):
+    """Administrators are cataloguers without an extra manual step."""
+
+    def test_superusers_join_the_cataloguer_group(self):
+        user = get_user_model().objects.create_superuser("root", "root@example.org", "long-password-1")
+        self.assertTrue(user.groups.filter(name=settings.CATALOGUER_GROUP).exists())
+
+    def test_ordinary_users_are_not_added(self):
+        user = get_user_model().objects.create_user("plain", "plain@example.org", "long-password-1")
+        self.assertFalse(user.groups.filter(name=settings.CATALOGUER_GROUP).exists())
+
+
 class MountPrefixTests(TestCase):
     """Behind the proxy the app is mounted under a prefix (/catalog/ on the
     test instance); links and post-save redirects must keep it."""
