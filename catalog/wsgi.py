@@ -12,4 +12,4 @@ from .settings.common import _DEFAULT_KEY
 
 # Runs at server boot, after local_settings has had its say.
 if not settings.DEBUG and settings.SECRET_KEY == _DEFAULT_KEY:
-    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DEBUG=0.")
+    raise ImproperlyConfigured("SECRET_KEY must be set when DEBUG=0.")

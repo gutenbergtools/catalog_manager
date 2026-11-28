@@ -157,7 +157,7 @@ EMAIL_TIMEOUT = 30
 # https://docs.djangoproject.com/en/5.2/ref/settings/#caches
 # https://docs.djangoproject.com/en/5.2/ref/settings/#logging
 # STATIC_ROOT = "/var/lib/catalog_manager/staticfiles"
-# DJANGO_CACHE_DIR and DJANGO_LOG_DIR are read from the environment.
+# CACHE_DIR and LOG_DIR are read from the environment.
 
 # Rows per listing page and rate limits.
 # PAGE_SIZE = 50

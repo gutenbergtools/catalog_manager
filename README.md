@@ -22,12 +22,12 @@ The example file documents every security setting and links to the matching Djan
 
 | Setting | Environment variable | What it does |
 | --- | --- | --- |
-| `SECRET_KEY` | `DJANGO_SECRET_KEY` | Signing key; required when `DEBUG` is off. |
-| `DEBUG` | `DJANGO_DEBUG` | Must be `0` in production. |
-| `ALLOWED_HOSTS` | `DJANGO_ALLOWED_HOSTS` | Host names Django may serve. |
-| `CSRF_TRUSTED_ORIGINS` | `DJANGO_CSRF_TRUSTED_ORIGINS` | HTTPS origins trusted for forms. |
+| `SECRET_KEY` | `SECRET_KEY` | Signing key; required when `DEBUG` is off. |
+| `DEBUG` | `DEBUG` | Must be `0` in production. |
+| `ALLOWED_HOSTS` | `ALLOWED_HOSTS` | Host names Django may serve. |
+| `CSRF_TRUSTED_ORIGINS` | `CSRF_TRUSTED_ORIGINS` | HTTPS origins trusted for forms. |
 | `DATABASES` | `PGHOST` / `PGPORT` / `PGDATABASE` / `PGUSER` / `PGPASSWORD` | Catalog and auth database. |
-| `AUTH_SCHEMA` | `DJANGO_DB_SCHEMA` | Schema for Django's own tables (default `django`). |
+| `AUTH_SCHEMA` | `DB_SCHEMA` | Schema for Django's own tables (default `django`). |
 | `DEFAULT_FROM_EMAIL` | – | Sender for password-set links. |
 
 See `.env.example` for all environment variables, and `catalog/settings/local_settings.example.py` for the on-disk equivalents, dummy database values, and documentation links.
@@ -42,7 +42,7 @@ set -a; . ./.env; set +a                    # load it for the commands below
 .venv/bin/python manage.py migrate
 .venv/bin/python manage.py createsuperuser
 .venv/bin/python manage.py collectstatic --noinput
-DJANGO_DEBUG=1 .venv/bin/python manage.py runserver 127.0.0.1:8000
+DEBUG=1 .venv/bin/python manage.py runserver 127.0.0.1:8000
 ```
 
 `migrate` creates Django's tables and the `cataloguer` gate group, and adds existing superusers to it. Every new superuser joins the group on save, so `createsuperuser` needs no extra step. Add each other cataloger to that group through the Django admin; new accounts are created without a password and receive a one-time emailed link to choose their own. An admin action re-sends the link later. If email is not configured, the admin gets the link to pass along by hand.
@@ -53,7 +53,7 @@ Django creates the auth schema automatically on first connect when the database 
 CREATE SCHEMA IF NOT EXISTS django;
 ```
 
-Keep the schema name in `DJANGO_DB_SCHEMA` / `AUTH_SCHEMA`; it must match the `search_path` in `DATABASES`.
+Keep the schema name in `DB_SCHEMA` / `AUTH_SCHEMA`; it must match the `search_path` in `DATABASES`.
 
 ## Code layout
 
@@ -84,7 +84,7 @@ The test command defaults to `catalog.settings.test`: Django's auth tables use i
    .venv/bin/pip install -r requirements.lock
    ```
 
-2. **Configure** the environment file. It is optional by design so a missing file cannot stop the service, but production needs these values pinned: `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_CSRF_TRUSTED_ORIGINS` and `PGPASSWORD`. Keep the file readable only by the service account.
+2. **Configure** the environment file. It is optional by design so a missing file cannot stop the service, but production needs these values pinned: `SECRET_KEY`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` and `PGPASSWORD`. Keep the file readable only by the service account.
 
 3. **Prepare the database.** Confirm the catalog tables exist and the app role can read and write them. Create the auth schema if the role lacks `CREATE`, then run:
 
@@ -100,10 +100,10 @@ The test command defaults to `catalog.settings.test`: Django's auth tables use i
    .venv/bin/python manage.py check --deploy
    ```
 
-   With `DEBUG=0`, the app refuses to start on the built-in development key. Secure cookies are on by default; `DJANGO_SECURE_COOKIES=1` pins them. Enable `DJANGO_SSL_REDIRECT=1` only after the proxy sends `X-Forwarded-Proto`, or HTTPS requests will loop.
+   With `DEBUG=0`, the app refuses to start on the built-in development key. Secure cookies are on by default; `SECURE_COOKIES=1` pins them. Enable `SSL_REDIRECT=1` only after the proxy sends `X-Forwarded-Proto`, or HTTPS requests will loop.
 
 5. **Run the service.** The included `catalog_manager.service` is a starting point: it expects the app in `/var/lib/catalog_manager`, a `.env` beside it, and gunicorn on `127.0.0.1:8000`. Adjust `User`, paths and workers for the host.
 
-6. **Put it behind a reverse proxy.** The proxy should terminate TLS, preserve the public `Host`, and send `X-Forwarded-Proto`, `X-Real-IP` and `X-Forwarded-For`. Set `DJANGO_ALLOWED_HOSTS` and `DJANGO_CSRF_TRUSTED_ORIGINS` to the public names, and keep `CATALOG_TRUSTED_PROXIES` limited to the proxy addresses that may supply `X-Real-IP`.
+6. **Put it behind a reverse proxy.** The proxy should terminate TLS, preserve the public `Host`, and send `X-Forwarded-Proto`, `X-Real-IP` and `X-Forwarded-For`. Set `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` to the public names, and keep `CATALOG_TRUSTED_PROXIES` limited to the proxy addresses that may supply `X-Real-IP`.
 
-7. **Email.** Configure the `EMAIL_*` settings so password-set links go out. Without email, the admin still gets each link to send by hand. Links are single-use and expire after `DJANGO_RESET_TIMEOUT` seconds (two hours by default).
+7. **Email.** Configure the `EMAIL_*` settings so password-set links go out. Without email, the admin still gets each link to send by hand. Links are single-use and expire after `RESET_TIMEOUT` seconds (two hours by default).

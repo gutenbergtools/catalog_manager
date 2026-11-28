@@ -12,14 +12,14 @@ def env_list(key, default=""):
     return [item.strip() for item in env(key, default).split(",") if item.strip()]
 
 
-LOG_DIR = Path(env("DJANGO_LOG_DIR", str(BASE_DIR / "logs")))
+LOG_DIR = Path(env("LOG_DIR", str(BASE_DIR / "logs")))
 _DEFAULT_KEY = "insecure-development-key-do-not-use-in-production"
-SECRET_KEY = env("DJANGO_SECRET_KEY", _DEFAULT_KEY)
-DEBUG = env("DJANGO_DEBUG", "0") == "1"
+SECRET_KEY = env("SECRET_KEY", _DEFAULT_KEY)
+DEBUG = env("DEBUG", "0") == "1"
 # The refuse-to-boot check for the default key lives in wsgi.py: it can only
 # run after the full settings (including local_settings) have loaded.
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost")
-CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
+ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "127.0.0.1,localhost")
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 for _key, _default in (
     ("PGHOST", "127.0.0.1"),
     ("PGPORT", "5432"),
@@ -75,15 +75,15 @@ DATABASES = {
         "PASSWORD": env("PGPASSWORD", ""),
         "HOST": env("PGHOST", "127.0.0.1"),
         "PORT": env("PGPORT", "5432"),
-        "OPTIONS": {"options": "-csearch_path=%s" % env("DJANGO_DB_SCHEMA", "django")},
+        "OPTIONS": {"options": "-csearch_path=%s" % env("DB_SCHEMA", "django")},
     },
 }
-AUTH_SCHEMA = env("DJANGO_DB_SCHEMA", "django")
+AUTH_SCHEMA = env("DB_SCHEMA", "django")
 MIGRATION_MODULES = {"catalog": None}
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
-        "LOCATION": env("DJANGO_CACHE_DIR", str(BASE_DIR / "cache")),
+        "LOCATION": env("CACHE_DIR", str(BASE_DIR / "cache")),
         "OPTIONS": {"MAX_ENTRIES": 2000},
     }
 }
@@ -112,13 +112,13 @@ LOGGING = {
             "encoding": "utf-8",
         },
     },
-    "root": {"handlers": ["console", "file"], "level": env("DJANGO_LOG_LEVEL", "INFO")},
+    "root": {"handlers": ["console", "file"], "level": env("LOG_LEVEL", "INFO")},
 }
 # Password-set links live for this many seconds; two hours, not Django's
 # three-day default, because resending from the user admin is one click.
-PASSWORD_RESET_TIMEOUT = int(env("DJANGO_RESET_TIMEOUT", "7200"))
+PASSWORD_RESET_TIMEOUT = int(env("RESET_TIMEOUT", "7200"))
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = env("DJANGO_TIME_ZONE", "America/New_York")
+TIME_ZONE = env("TIME_ZONE", "America/New_York")
 USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
@@ -131,12 +131,12 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "books"
 LOGOUT_REDIRECT_URL = "login"
-ADMIN_URL = env("DJANGO_ADMIN_URL", "admin").strip("/")
+ADMIN_URL = env("ADMIN_URL", "admin").strip("/")
 SESSION_COOKIE_NAME = "catalog_cat"
 CSRF_COOKIE_NAME = "catalog_cat_csrf"
 CSRF_COOKIE_HTTPONLY = True
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1048576
-SESSION_COOKIE_AGE = int(env("DJANGO_SESSION_AGE", "43200"))
+SESSION_COOKIE_AGE = int(env("SESSION_AGE", "43200"))
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
@@ -147,14 +147,14 @@ SECURE_REFERRER_POLICY = "same-origin"
 # local socket Django listens on.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
-secure = env("DJANGO_SECURE_COOKIES", "0" if DEBUG else "1") == "1"
+secure = env("SECURE_COOKIES", "0" if DEBUG else "1") == "1"
 if secure:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 31536000
 # The redirect stays opt-in: behind a TLS-terminating proxy that does not
 # pass X-Forwarded-Proto it loops, so the proxy should send http -> https.
-if env("DJANGO_SSL_REDIRECT", "0") == "1":
+if env("SSL_REDIRECT", "0") == "1":
     SECURE_SSL_REDIRECT = True
 PAGE_SIZE = int(env("CATALOG_PAGE_SIZE", "50"))
 RATE_LOGIN = env("CATALOG_RATE_LOGIN", "10/m")
@@ -165,5 +165,5 @@ CATALOG_TRUSTED_PROXIES = env_list("CATALOG_TRUSTED_PROXIES", "127.0.0.1,::1")
 RATELIMIT_IP_META_KEY = "catalog.proxy.client_ip"
 # Who may use the site: membership in this Django auth group (see
 # catalog/apps.py, which creates it on migrate).
-CATALOGUER_GROUP = env("DJANGO_CATALOGUER_GROUP", "cataloguer")
+CATALOGUER_GROUP = env("CATALOGUER_GROUP", "cataloguer")
 os.makedirs(LOG_DIR, exist_ok=True)
